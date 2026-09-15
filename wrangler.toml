@@ -11,7 +11,7 @@ bucket_name = "picos-store"
 
 [[kv_namespaces]]
 binding = "PICOS_STORE_KV"
-id = "00000000000000000000000000000000"
+id = "ac57dbbf6a174eee81a32c922b46ebef"
 
 [triggers]
 crons = ["*/30 * * * *"]

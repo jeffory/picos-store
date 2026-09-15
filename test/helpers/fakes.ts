@@ -14,6 +14,9 @@ export class FakeR2 {
   async put(key: string, value: string, opts?: { httpMetadata?: { contentType?: string; cacheControl?: string } }): Promise<void> {
     this.store.set(key, { body: value, ...opts?.httpMetadata });
   }
+  async head(key: string): Promise<{ key: string } | null> {
+    return this.store.has(key) ? { key } : null;
+  }
   async get(key: string): Promise<{ body: ReadableStream; httpEtag: string; text(): Promise<string>; httpMetadata: { contentType?: string } } | null> {
     const v = this.store.get(key);
     if (!v) return null;

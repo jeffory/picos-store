@@ -134,4 +134,47 @@ describe("refresh", () => {
     e.GITHUB_TOKEN = undefined;
     expect(await refresh(e, { fetch: github([]).fetch, logger: { error() {} } })).toEqual({ ok: false, error: "GITHUB_TOKEN is not configured" });
   });
+  it("retains the existing catalog when every repo is rejected", async () => {
+    const { env: e, r2 } = env();
+    await r2.put(CATALOG_KEY, "OLD");
+    const { fetch } = github([{ owner: "ex", name: "norel", tag: null }, { owner: "ex", name: "norel2", tag: null }]);
+    const res = await refresh(e, { fetch });
+    expect(res).toMatchObject({ ok: true, appCount: 0 });
+    expect(r2.store.get(CATALOG_KEY)!.body).toBe("OLD");
+    const debug = JSON.parse(r2.store.get(DEBUG_KEY)!.body);
+    expect(debug.rejected).toEqual([
+      { repo: "ex/norel", reason: "no-release" },
+      { repo: "ex/norel2", reason: "no-release" },
+    ]);
+    expect(debug.warnings).toContain("empty-result: previous catalog retained");
+  });
+  it("bootstraps catalog.json when every repo is rejected and none exists yet", async () => {
+    const { env: e, r2 } = env();
+    const { fetch } = github([{ owner: "ex", name: "norel", tag: null }]);
+    const res = await refresh(e, { fetch });
+    expect(res).toMatchObject({ ok: true, appCount: 0 });
+    const cat = luaParseCatalog(r2.store.get(CATALOG_KEY)!.body);
+    expect(cat.apps).toEqual([]);
+  });
+  it("does not persist id claims when publishing fails, but does once publishing succeeds", async () => {
+    class ThrowOnceR2 extends FakeR2 {
+      private thrown = false;
+      async put(key: string, value: string, opts?: { httpMetadata?: { contentType?: string; cacheControl?: string } }): Promise<void> {
+        if (key === CATALOG_KEY && !this.thrown) { this.thrown = true; throw new Error("boom"); }
+        await super.put(key, value, opts);
+      }
+    }
+    const kv = new FakeKV();
+    const r2 = new ThrowOnceR2();
+    const e: Env = { PICOS_STORE_KV: kv as never, PICOS_STORE_BUCKET: r2 as never, GITHUB_TOKEN: "tok" };
+    const { fetch } = github([{ owner: "a", name: "app" }]);
+
+    const failed = await refresh(e, { fetch });
+    expect(failed).toMatchObject({ ok: false });
+    expect([...kv.store.keys()].some((k) => k.startsWith("claim:"))).toBe(false);
+
+    const ok = await refresh(e, { fetch });
+    expect(ok).toMatchObject({ ok: true, appCount: 1 });
+    expect(kv.store.get("claim:com.a.app")).toBe("a/app");
+  });
 });

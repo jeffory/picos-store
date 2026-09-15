@@ -28,14 +28,25 @@ export async function refresh(env: Env, options: RefreshOptions = {}): Promise<R
     const warnings: string[] = [];
     if (search.truncated) warnings.push(`GitHub returned ${search.totalCount} results; only ${search.repos.length} were collected.`);
 
-    const { apps, rejected } = await collectApps(env, gh, fetchFn, search.repos, warnings);
+    const { apps, rejected, claims } = await collectApps(env, gh, fetchFn, search.repos, warnings);
     if (apps.length === 0 && rejected.length === 0) throw new Error("GitHub returned no repositories tagged picos-app");
 
     const firmware = await loadFirmware(gh, warnings);
     const catalog: Catalog = { generated_at: now.toISOString(), firmware, apps };
     const meta = { httpMetadata: { contentType: "application/json; charset=utf-8", cacheControl: CATALOG_CACHE_CONTROL } };
-    await env.PICOS_STORE_BUCKET.put(CATALOG_KEY, emitCatalog(catalog), meta);
+
+    let writeCatalog = true;
+    if (apps.length === 0) {
+      const existing = await env.PICOS_STORE_BUCKET.head(CATALOG_KEY);
+      if (existing) {
+        writeCatalog = false;
+        warnings.push("empty-result: previous catalog retained");
+      }
+    }
+
+    if (writeCatalog) await env.PICOS_STORE_BUCKET.put(CATALOG_KEY, emitCatalog(catalog), meta);
     await env.PICOS_STORE_BUCKET.put(DEBUG_KEY, emitDebugCatalog(catalog, { rejected, warnings }), meta);
+    for (const claim of claims) await env.PICOS_STORE_KV.put(claim.key, claim.owner);
     return { ok: true, appCount: apps.length, rejected, warnings, generatedAt: catalog.generated_at };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown refresh error";
@@ -64,10 +75,13 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
   validated.sort((a, b) => b.repo.stars - a.repo.stars || a.repo.fullName.localeCompare(b.repo.fullName));
 
   const apps: CatalogApp[] = [];
+  const claims: Array<{ key: string; owner: string }> = [];
+  const pendingOwners = new Map<string, string>();
   const budget: DigestBudget = { remaining: MAX_DIGESTS_PER_RUN };
   for (const app of validated) {
     const claimKey = `claim:${app.manifest.id}`;
-    const owner = await env.PICOS_STORE_KV.get(claimKey);
+    const existingOwner = await env.PICOS_STORE_KV.get(claimKey);
+    const owner = existingOwner ?? pendingOwners.get(claimKey) ?? null;
     if (owner && owner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `id-claimed-by:${owner}` }); continue; }
 
     const key = digestKey(app.repo.fullName, app.release.tagName, app.asset.id);
@@ -76,7 +90,7 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
     if ("transient" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.transient }); continue; }
     if ("rejected" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.rejected }); continue; }
 
-    if (!owner) await env.PICOS_STORE_KV.put(claimKey, app.repo.fullName);
+    if (!existingOwner) { pendingOwners.set(claimKey, app.repo.fullName); claims.push({ key: claimKey, owner: app.repo.fullName }); }
     for (const w of app.warnings) warnings.push(`${app.repo.fullName}: ${w}`);
     apps.push({
       id: app.manifest.id, dirname: app.manifest.dirname, name: app.manifest.name, description: app.manifest.description,
@@ -88,7 +102,7 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
       pushed_at: app.repo.pushedAt ?? "",
     });
   }
-  return { apps, rejected };
+  return { apps, rejected, claims };
 }
 
 async function loadFirmware(gh: GitHubClient, warnings: string[]): Promise<Firmware | null> {

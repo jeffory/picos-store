@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { digestAsset, digestKey, MAX_DIGESTS_PER_RUN } from "../src/digest";
+import { describe, it, expect, vi } from "vitest";
+import { digestAsset, digestKey, MAX_DIGESTS_PER_RUN, _deps } from "../src/digest";
 import { FakeKV, routeFetch } from "./helpers/fakes";
 import { buildZip } from "./helpers/zip-writer";
 
@@ -31,6 +31,7 @@ describe("digestAsset", () => {
     const again = await digestAsset(kv as never, fetch, key, asset, budget);
     expect(again).toEqual(rec);
     expect(calls).toHaveLength(1);
+    expect(budget.remaining).toBe(MAX_DIGESTS_PER_RUN - 1); // KV hit leaves the budget untouched
   });
   it("detects native apps", async () => {
     const zip = buildZip([{ name: "app.json", data: '{"id":"com.ex.snake"}' }, { name: "main.elf", data: "x" }]);
@@ -62,13 +63,33 @@ describe("digestAsset", () => {
   });
   it("treats download failures as transient and does not cache", async () => {
     const kv = new FakeKV();
-    expect(await digestAsset(kv as never, serve("", 404).fetch, key, asset, { remaining: 5 })).toEqual({ transient: "asset-unreachable:404" });
+    const budget = { remaining: 5 };
+    expect(await digestAsset(kv as never, serve("", 404).fetch, key, asset, budget)).toEqual({ transient: "asset-unreachable:404" });
     expect(kv.store.size).toBe(0);
+    expect(budget.remaining).toBe(4);
   });
   it("refuses oversized bodies by header and by length", async () => {
     const byHeader = serve(goodZip(), 200, { "Content-Length": String(16 * 1024 * 1024 + 1) });
-    expect(await digestAsset(new FakeKV() as never, byHeader.fetch, key, asset, { remaining: 5 })).toEqual({ transient: "asset-too-large" });
+    const budget1 = { remaining: 5 };
+    expect(await digestAsset(new FakeKV() as never, byHeader.fetch, key, asset, budget1)).toEqual({ transient: "asset-too-large" });
+    expect(budget1.remaining).toBe(4);
     const big = new Uint8Array(16 * 1024 * 1024 + 1).buffer;
-    expect(await digestAsset(new FakeKV() as never, serve(big).fetch, key, asset, { remaining: 5 })).toEqual({ transient: "asset-too-large" });
+    const budget2 = { remaining: 5 };
+    expect(await digestAsset(new FakeKV() as never, serve(big).fetch, key, asset, budget2)).toEqual({ transient: "asset-too-large" });
+    expect(budget2.remaining).toBe(4);
+  });
+  it("treats an unexpected (non-ZipError) inspection failure as transient and does not cache", async () => {
+    const kv = new FakeKV();
+    const spy = vi.spyOn(_deps, "readZipEntries").mockImplementation(() => {
+      throw new TypeError("boom");
+    });
+    try {
+      const budget = { remaining: 5 };
+      expect(await digestAsset(kv as never, serve(goodZip()).fetch, key, asset, budget)).toEqual({ transient: "digest-error:TypeError" });
+      expect(kv.store.size).toBe(0);
+      expect(budget.remaining).toBe(4);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

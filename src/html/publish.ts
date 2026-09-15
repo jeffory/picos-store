@@ -29,8 +29,9 @@ export function renderPublishPage(): string {
 <h3>The ZIP</h3>
 <p>Files must sit at the archive root: <code>app.json</code> plus <code>main.lua</code> (Lua app) or <code>main.elf</code> (native app), and any assets. Do not wrap them in a folder. The ZIP must be at most 16 MB, and the <code>id</code> in the ZIP's <code>app.json</code> must equal the one in the repository. The index computes the SHA-256 itself; you do not publish a checksum.</p>
 <h3>Rejection reasons</h3>
-<table><tbody>
+<div class="scroll"><table><tbody>
 <tr><td><code>no-release</code></td><td>No published (non-draft, non-prerelease) GitHub Release.</td></tr>
+<tr><td><code>github-error: &lt;message&gt;</code></td><td>GitHub returned an error for this repository during indexing; retried on the next refresh.</td></tr>
 <tr><td><code>no-app-json</code></td><td><code>app.json</code> is missing at the release tag.</td></tr>
 <tr><td><code>app-json-invalid</code></td><td><code>app.json</code> is not a JSON object.</td></tr>
 <tr><td><code>missing-field:&lt;name&gt;</code></td><td>A required field is absent or not a string.</td></tr>
@@ -40,6 +41,7 @@ export function renderPublishPage(): string {
 <tr><td><code>asset-not-found:&lt;name&gt;</code></td><td>The <code>asset</code> named in <code>app.json</code> is not on the release.</td></tr>
 <tr><td><code>asset-not-zip:&lt;name&gt;</code></td><td>The asset named in <code>app.json</code> exists but is not a <code>.zip</code>.</td></tr>
 <tr><td><code>asset-too-large</code></td><td>ZIP over 16 MB.</td></tr>
+<tr><td><code>zip-invalid</code></td><td>The ZIP could not be parsed (corrupt archive, or ZIP64 which is not supported).</td></tr>
 <tr><td><code>zip-layout</code></td><td>ZIP root lacks <code>app.json</code> or <code>main.lua</code>/<code>main.elf</code>.</td></tr>
 <tr><td><code>zip-app-json-invalid</code></td><td>The <code>app.json</code> inside the ZIP is unreadable or has a bad id.</td></tr>
 <tr><td><code>id-mismatch:&lt;id&gt;</code></td><td>The ZIP's id differs from the repository's.</td></tr>
@@ -48,7 +50,7 @@ export function renderPublishPage(): string {
 <tr><td><code>asset-unreachable:&lt;status&gt;</code></td><td>The ZIP could not be downloaded; retried next refresh.</td></tr>
 <tr><td><code>digest-error:&lt;name&gt;</code></td><td>The index hit an unexpected error while reading the ZIP; it will retry on the next refresh.</td></tr>
 <tr><td><code>blocked</code></td><td>Delisted by the maintainer.</td></tr>
-</tbody></table>
+</tbody></table></div>
 <h3>Updating</h3>
 <p>Bump <code>version</code> in <code>app.json</code>, tag a new Release with a new ZIP. Devices see the update on their next catalog fetch. Removing the topic delists the app on the next refresh.</p>`;
   return renderPage({ title: "Publish · PicOS App Store", description: "How to list an app in the PicOS App Store", body });

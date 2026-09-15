@@ -3,6 +3,16 @@ export function escapeHtml(value: unknown): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+export function safeUrl(value: string, fallback: string): string {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return value;
+  } catch {
+    // fall through to fallback
+  }
+  return fallback;
+}
+
 const CSS = `
 :root{color-scheme:light dark;--bg:#f6f6f4;--fg:#1a1a1a;--muted:#666;--card:#fff;--line:#ddd;--accent:#0b6b4f;--pill:#e8efe9}
 @media(prefers-color-scheme:dark){:root{--bg:#121212;--fg:#ececec;--muted:#9a9a9a;--card:#1c1c1c;--line:#333;--accent:#6fd3a8;--pill:#1f2b25}}
@@ -20,7 +30,8 @@ header h1{margin:0;font-size:22px}header nav a{margin-left:14px}.meta{color:var(
 .row{display:flex;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--muted)}.links a{margin-right:12px}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px}dt{color:var(--muted)}dd{margin:0;word-break:break-all}
 code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto}
-table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+.scroll{overflow-x:auto;max-width:100%}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:24px}.empty{color:var(--muted);padding:32px 0;text-align:center}
 `;
 

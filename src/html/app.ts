@@ -1,15 +1,18 @@
 import type { Catalog, CatalogApp } from "../catalog";
-import { escapeHtml as e, renderPage } from "./layout";
+import { escapeHtml as e, renderPage, safeUrl } from "./layout";
 import { zipUrl, formatSize } from "./index";
 
 export function renderAppPage(a: CatalogApp, catalog: Catalog): string {
   const fwNote = catalog.firmware && a.min_firmware !== "0.0.0" ? ` (current firmware ${e(catalog.firmware.version)})` : "";
+  const repoUrl = `https://github.com/${a.repo}`;
+  const homepageUrl = safeUrl(a.homepage, repoUrl);
+  const showHomepage = homepageUrl !== repoUrl && !homepageUrl.includes(`github.com/${a.repo}`);
   const body = `
 <p class="meta"><a href="/">← All apps</a></p>
 <h2 style="margin:0 0 4px">${e(a.name)} <span class="meta">v${e(a.version)}</span></h2>
 <p>${e(a.description)}</p>
 ${a.long_description ? `<p>${e(a.long_description)}</p>` : ""}
-<div class="links" style="margin:12px 0 20px"><a href="https://github.com/${e(a.repo)}">Source on GitHub</a><a href="${e(zipUrl(a))}">Download ${e(a.asset)}</a>${a.homepage && !a.homepage.includes(`github.com/${a.repo}`) ? `<a href="${e(a.homepage)}">Homepage</a>` : ""}</div>
+<div class="links" style="margin:12px 0 20px"><a href="${e(repoUrl)}">Source on GitHub</a><a href="${e(zipUrl(a))}">Download ${e(a.asset)}</a>${showHomepage ? `<a href="${e(homepageUrl)}">Homepage</a>` : ""}</div>
 <dl>
 <dt>Id</dt><dd><code>${e(a.id)}</code></dd>
 <dt>Author</dt><dd>${e(a.author)}</dd>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, renderPage } from "../src/html/layout";
+import { escapeHtml, renderPage, safeUrl } from "../src/html/layout";
 import { renderIndexPage } from "../src/html/index";
 import { renderAppPage } from "../src/html/app";
 import { renderStatusPage } from "../src/html/status";
@@ -11,6 +11,19 @@ const evil = fixtureApp({ id: "com.evil.app", name: '<script>alert(1)</script>"'
 describe("escapeHtml", () => {
   it("escapes the five characters", () => {
     expect(escapeHtml(`<a href="x">&'</a>`)).toBe("&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;");
+  });
+});
+
+describe("safeUrl", () => {
+  it("allows http and https URLs through unchanged", () => {
+    expect(safeUrl("https://example.com/x", "fallback")).toBe("https://example.com/x");
+    expect(safeUrl("http://example.com/x", "fallback")).toBe("http://example.com/x");
+  });
+  it("falls back for javascript:, data:, ftp: and garbage", () => {
+    expect(safeUrl("javascript:alert(1)", "fallback")).toBe("fallback");
+    expect(safeUrl("data:text/html,<script>alert(1)</script>", "fallback")).toBe("fallback");
+    expect(safeUrl("ftp://example.com/x", "fallback")).toBe("fallback");
+    expect(safeUrl("not a url", "fallback")).toBe("fallback");
   });
 });
 
@@ -53,6 +66,11 @@ describe("renderAppPage", () => {
     expect(html).toContain("audio");
     expect(html).toContain("v1.2.0");
   });
+  it("never emits a javascript: homepage link", () => {
+    const app = fixtureApp({ homepage: "javascript:alert(1)" });
+    const html = renderAppPage(app, fixtureCatalog([app]));
+    expect(html).not.toContain("javascript:");
+  });
 });
 
 describe("renderStatusPage", () => {
@@ -64,6 +82,10 @@ describe("renderStatusPage", () => {
   });
   it("says so when nothing is rejected", () => {
     expect(renderStatusPage(fixtureCatalog(), { rejected: [], warnings: [] })).toContain("No repositories were rejected");
+  });
+  it("wraps the rejection table so it can scroll instead of widening the page", () => {
+    const html = renderStatusPage(fixtureCatalog(), { rejected: [{ repo: "a/b", reason: "no-release" }], warnings: [] });
+    expect(html).toContain('class="scroll"');
   });
 });
 
@@ -79,5 +101,7 @@ describe("renderPublishPage", () => {
     const html = renderPublishPage();
     expect(html).toContain("bad-dirname");
     expect(html).toContain("asset-not-zip");
+    expect(html).toContain("github-error");
+    expect(html).toContain("zip-invalid");
   });
 });

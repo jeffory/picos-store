@@ -45,7 +45,8 @@ before anyone else can index one. From a PicOS checkout:
     ./scripts/seed-claims.sh ~/Projects/PicOS
 
 It reads every `apps/*/app.json` and writes `claim:<id>` and
-`claim:dir:<dirname>` (dirname lower-cased) as `jeffory/picOS`. The dirnames PicOS ships in the
+`claim:dir:<dirname>` (dirname lower-cased) as `jeffory/picOS` into the remote namespace, skipping keys that
+already exist (an app that moved to its own repo keeps its own claim). The dirnames PicOS ships in the
 firmware image (`store`, `updater`, `filemanager`, `editor`,
 `terminal_example`, `calculator`, `system`, `data`) are refused outright for
 any repository other than `jeffory/picOS`, but ids and the remaining app

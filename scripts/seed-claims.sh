@@ -5,7 +5,9 @@
 #   ./scripts/seed-claims.sh ~/Projects/PicOS [--dry-run]
 #
 # Reads apps/*/app.json from the PicOS checkout given as $1 and writes
-# claim:<id> and claim:dir:<dirname> (dirname lower-cased) = jeffory/picOS into PICOS_STORE_KV.
+# claim:<id> and claim:dir:<dirname> (dirname lower-cased) = jeffory/picOS into the
+# REMOTE PICOS_STORE_KV. Keys that already exist are left alone, so an app that has
+# since moved to its own repository (and been claimed by it) is never overwritten.
 set -euo pipefail
 
 OWNER="jeffory/picOS"
@@ -18,10 +20,16 @@ if [ -z "$ROOT" ] || [ ! -d "$ROOT/apps" ]; then
 fi
 
 put() {
+  local existing
+  if existing="$(npx wrangler kv key get --binding PICOS_STORE_KV --remote "$1" 2>/dev/null)"; then
+    echo "keep $1 = $existing"
+    return
+  fi
   if [ "$DRY_RUN" = "--dry-run" ]; then
     echo "would put $1 = $OWNER"
   else
-    npx wrangler kv key put --binding PICOS_STORE_KV "$1" "$OWNER"
+    npx wrangler kv key put --binding PICOS_STORE_KV --remote "$1" "$OWNER"
+    echo "put $1 = $OWNER"
   fi
 }
 

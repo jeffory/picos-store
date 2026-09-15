@@ -1,0 +1,17 @@
+name = "picos-store"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+routes = [{ pattern = "picos.jeffory.dev", custom_domain = true }]
+
+[[r2_buckets]]
+binding = "PICOS_STORE_BUCKET"
+bucket_name = "picos-store"
+
+[[kv_namespaces]]
+binding = "PICOS_STORE_KV"
+id = "00000000000000000000000000000000"
+
+[triggers]
+crons = ["*/30 * * * *"]

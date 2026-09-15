@@ -103,6 +103,21 @@ describe("fetchAppJson", () => {
     expect(map.get("o0/r0")).toEqual({ ok: true, value: '{"id":"a.b"}' });
     expect(map.get("o1/r1")).toEqual({ ok: true, value: null });
   });
+  it("strips quotes and backslashes from an adversarial tag before embedding it in the GraphQL expression", async () => {
+    let capturedQuery = "";
+    const { fetch } = routeFetch({
+      "POST api.github.com/graphql": async (req) => {
+        const { query } = (await req.json()) as { query: string };
+        capturedQuery = query;
+        return json({ data: { r0: { object: null } } });
+      },
+    });
+    const map = await createGitHubClient(fetch, "tok").fetchAppJson([{ fullName: "o0/r0", tag: 'v1"}) { evil } #\\' }]);
+    expect(capturedQuery).toContain('expression: "v1}) { evil } #:app.json"');
+    expect(capturedQuery.match(/expression:/g)).toHaveLength(1);
+    expect(capturedQuery.match(/repository\(/g)).toHaveLength(1);
+    expect(map.has("o0/r0")).toBe(true);
+  });
 });
 
 describe("fetchFirmwareRelease", () => {
@@ -117,5 +132,13 @@ describe("fetchFirmwareRelease", () => {
   it("reports failure without throwing", async () => {
     const { fetch } = routeFetch({ "GET api.github.com/repos/jeffory/picOS/releases/latest": () => json({}, 404) });
     expect(await createGitHubClient(fetch, "tok").fetchFirmwareRelease("jeffory/picOS")).toEqual({ ok: false, error: "github 404" });
+  });
+  it("absorbs a transport-level failure instead of rejecting", async () => {
+    const { fetch } = routeFetch({
+      "GET api.github.com/repos/jeffory/picOS/releases/latest": () => { throw new TypeError("fetch failed"); },
+    });
+    await expect(createGitHubClient(fetch, "tok").fetchFirmwareRelease("jeffory/picOS")).resolves.toEqual({
+      ok: false, error: "github-unreachable: TypeError",
+    });
   });
 });

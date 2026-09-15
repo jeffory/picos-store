@@ -144,13 +144,17 @@ export function createGitHubClient(fetchFn: typeof fetch, token: string): GitHub
     },
 
     async fetchFirmwareRelease(repo) {
-      const res = await call(`https://api.github.com/repos/${repo}/releases/latest`, { method: "GET" });
-      if (!res.ok) return { ok: false, error: `github ${res.status}` };
-      const body: unknown = await res.json();
-      if (!isObj(body)) return { ok: false, error: "malformed release" };
-      const tagName = s(body.tag_name);
-      if (!tagName) return { ok: false, error: "release has no tag" };
-      return { ok: true, value: { tagName, body: typeof body.body === "string" ? body.body : "", assets: parseAssets(body.assets) } };
+      try {
+        const res = await call(`https://api.github.com/repos/${repo}/releases/latest`, { method: "GET" });
+        if (!res.ok) return { ok: false, error: `github ${res.status}` };
+        const body: unknown = await res.json();
+        if (!isObj(body)) return { ok: false, error: "malformed release" };
+        const tagName = s(body.tag_name);
+        if (!tagName) return { ok: false, error: "release has no tag" };
+        return { ok: true, value: { tagName, body: typeof body.body === "string" ? body.body : "", assets: parseAssets(body.assets) } };
+      } catch (e) {
+        return { ok: false, error: `github-unreachable: ${e instanceof Error ? e.name : "error"}` };
+      }
     },
   };
 }

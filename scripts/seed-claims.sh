@@ -5,7 +5,7 @@
 #   ./scripts/seed-claims.sh ~/Projects/PicOS [--dry-run]
 #
 # Reads apps/*/app.json from the PicOS checkout given as $1 and writes
-# claim:<id> and claim:dir:<dirname> = jeffory/picOS into PICOS_STORE_KV.
+# claim:<id> and claim:dir:<dirname> (dirname lower-cased) = jeffory/picOS into PICOS_STORE_KV.
 set -euo pipefail
 
 OWNER="jeffory/picOS"
@@ -49,5 +49,5 @@ print("%s\t%s" % (app_id, dirname))
   [ -n "$fields" ] || continue
   IFS=$'\t' read -r app_id dirname <<<"$fields"
   put "claim:$app_id"
-  put "claim:dir:$dirname"
+  put "claim:dir:${dirname,,}"
 done

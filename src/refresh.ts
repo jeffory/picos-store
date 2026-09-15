@@ -86,7 +86,9 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
       if (owner && owner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `id-claimed-by:${owner}` }); continue; }
 
       // The store deletes /apps/<dirname> before extracting, so a dirname is as load-bearing as an id.
-      const dirKey = `claim:dir:${app.manifest.dirname}`;
+      // The device's FAT32 filesystem is case-insensitive, so the claim key is lower-cased to match
+      // (the emitted catalog dirname keeps the author's original spelling).
+      const dirKey = `claim:dir:${app.manifest.dirname.toLowerCase()}`;
       const existingDirOwner = await env.PICOS_STORE_KV.get(dirKey);
       const dirOwner = existingDirOwner ?? pendingOwners.get(dirKey) ?? null;
       if (dirOwner && dirOwner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `dirname-claimed-by:${dirOwner}` }); continue; }

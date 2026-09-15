@@ -113,6 +113,27 @@ describe("refresh", () => {
     expect(res.ok && res.appCount).toBe(0);
     expect(res.ok && res.rejected).toEqual([{ repo: "b/second", reason: "dirname-claimed-by:a/first" }]);
   });
+  it("treats dirname claims as case-insensitive, since the device's FAT32 filesystem is", async () => {
+    const { env: e, kv } = env();
+    const weather = (id: string, dirname: string) => JSON.stringify({ id, name: "Weather", version: "1.0.0", category: "utilities", dirname });
+    const { fetch } = github([
+      { owner: "a", name: "wx", stars: 5, appJson: weather("com.a.wx", "Weather"), zip: zipFor("com.a.wx") },
+      { owner: "b", name: "wx", stars: 1, appJson: weather("com.b.wx", "weather"), zip: zipFor("com.b.wx") },
+    ]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.appCount).toBe(1);
+    expect(res.ok && res.rejected).toEqual([{ repo: "b/wx", reason: "dirname-claimed-by:a/wx" }]);
+    expect(kv.store.get("claim:dir:weather")).toBe("a/wx");
+  });
+  it("rejects a newcomer whose dirname collides case-insensitively with a persisted claim", async () => {
+    const { env: e, kv } = env();
+    await kv.put("claim:dir:weather", "x/y");
+    const shout = JSON.stringify({ id: "com.new.wx", name: "Weather", version: "1.0.0", category: "utilities", dirname: "WEATHER" });
+    const { fetch } = github([{ owner: "new", name: "wx", appJson: shout, zip: zipFor("com.new.wx") }]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.appCount).toBe(0);
+    expect(res.ok && res.rejected).toEqual([{ repo: "new/wx", reason: "dirname-claimed-by:x/y" }]);
+  });
   it("refuses a dirname the firmware itself ships", async () => {
     const { env: e } = env();
     const shady = JSON.stringify({ id: "com.ex.shady", name: "Shady", version: "1.0.0", dirname: "store" });

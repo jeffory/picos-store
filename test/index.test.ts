@@ -69,6 +69,16 @@ describe("HTML routes", () => {
     const { e } = env();
     expect((await get("/apps/com.nope", e)).status).toBe(404);
   });
+  it("404s a malformed app id path", async () => {
+    const { e } = env();
+    const res = await get("/apps/%", e);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+  it("404s an empty app id path", async () => {
+    const { e } = env();
+    expect((await get("/apps/", e)).status).toBe(404);
+  });
 });
 
 describe("POST /refresh", () => {

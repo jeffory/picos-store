@@ -64,6 +64,15 @@ export async function handleRequest(request: Request, env: Env, deps: Deps = {})
   if (path === "/publish") return html(renderPublishPage());
 
   if (path === "/health" || path === "/" || path === "/status" || path.startsWith("/apps/")) {
+    let id: string | null = null;
+    if (path.startsWith("/apps/")) {
+      try {
+        id = decodeURIComponent(path.slice("/apps/".length));
+      } catch {
+        return notFound();
+      }
+      if (!id) return notFound();
+    }
     const snap = await readSnapshot(env, DEBUG_KEY);
     if (!snap) return unavailable();
     const { catalog, debug } = parseSnapshot(snap.text);
@@ -72,7 +81,6 @@ export async function handleRequest(request: Request, env: Env, deps: Deps = {})
     }
     if (path === "/") return html(renderIndexPage(catalog));
     if (path === "/status") return html(renderStatusPage(catalog, debug));
-    const id = decodeURIComponent(path.slice("/apps/".length));
     const app = catalog.apps.find((a) => a.id === id);
     return app ? html(renderAppPage(app, catalog)) : notFound();
   }

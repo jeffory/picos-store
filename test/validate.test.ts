@@ -40,6 +40,10 @@ describe("validateRepo", () => {
     ["multiple-zip-assets", rel([asset("a.zip"), asset("b.zip")]), manifest()],
     ["asset-not-found:other.zip", rel(), manifest({ asset: "other.zip" })],
     ["asset-too-large", rel([asset("snake.zip", MAX_ASSET_BYTES + 1)]), manifest()],
+    ["bad-dirname", rel(), manifest({ dirname: "../../system" })],
+    ["bad-dirname", rel(), manifest({ dirname: "a/b" })],
+    ["bad-dirname", rel(), manifest({ dirname: "a".repeat(33) })],
+    ["asset-not-zip:README.txt", rel([asset("snake.zip"), asset("README.txt")]), manifest({ asset: "README.txt" })],
   ])("rejects with %s", (reason, release, appJson) => {
     expect(validateRepo(repo, release, appJson)).toEqual({ ok: false, reason });
   });

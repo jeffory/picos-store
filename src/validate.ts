@@ -2,6 +2,7 @@ import type { RepoSummary, RepoRelease, ReleaseAsset, Lookup } from "./github";
 import { normalizeCategory, type Category } from "./catalog";
 
 export const APP_ID_RE = /^[a-z0-9]+(\.[a-z0-9_-]+)+$/;
+export const DIRNAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
 export const MAX_ASSET_BYTES = 16 * 1024 * 1024;
 
 export interface AppManifest {
@@ -31,6 +32,7 @@ export function validateRepo(repo: RepoSummary, release: Lookup<RepoRelease | nu
   }
   const id = m.id as string;
   if (!APP_ID_RE.test(id)) return reject("bad-id");
+  if (m.dirname !== undefined && (typeof m.dirname !== "string" || !DIRNAME_RE.test(m.dirname))) return reject("bad-dirname");
 
   const zips = release.value.assets.filter((a) => a.name.toLowerCase().endsWith(".zip"));
   const wanted = typeof m.asset === "string" ? m.asset : null;
@@ -38,6 +40,7 @@ export function validateRepo(repo: RepoSummary, release: Lookup<RepoRelease | nu
   if (wanted) {
     asset = release.value.assets.find((a) => a.name === wanted);
     if (!asset) return reject(`asset-not-found:${wanted}`);
+    if (!asset.name.toLowerCase().endsWith(".zip")) return reject(`asset-not-zip:${wanted}`);
   } else {
     if (zips.length === 0) return reject("no-zip-asset");
     if (zips.length > 1) return reject("multiple-zip-assets");

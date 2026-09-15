@@ -104,4 +104,10 @@ describe("renderPublishPage", () => {
     expect(html).toContain("github-error");
     expect(html).toContain("zip-invalid");
   });
+  it("documents the dirname claim rules and the network-error wording", () => {
+    const html = renderPublishPage();
+    expect(html).toContain("dirname-claimed-by:&lt;repo&gt;");
+    expect(html).toContain("dirname-reserved");
+    expect(html).toContain("asset-unreachable:&lt;status|error&gt;");
+  });
 });

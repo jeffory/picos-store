@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { digestAsset, digestKey, MAX_DIGESTS_PER_RUN, _deps } from "../src/digest";
+import { digestAsset, digestKey, MAX_DIGESTS_PER_RUN, MAX_ZIP_APP_JSON_BYTES, _deps } from "../src/digest";
 import { FakeKV, routeFetch } from "./helpers/fakes";
 import { buildZip } from "./helpers/zip-writer";
 
@@ -91,5 +91,60 @@ describe("digestAsset", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+/** Rewrites the central-directory uncompressed size for one entry, as a deflate bomb would declare it. */
+function declareUncompressedSize(buf: ArrayBuffer, name: string, size: number): ArrayBuffer {
+  const bytes = new Uint8Array(buf), view = new DataView(buf), dec = new TextDecoder();
+  for (let p = 0; p + 46 <= bytes.length; p++) {
+    if (view.getUint32(p, true) !== 0x02014b50) continue;
+    const nameLen = view.getUint16(p + 28, true);
+    if (dec.decode(bytes.subarray(p + 46, p + 46 + nameLen)) !== name) continue;
+    view.setUint32(p + 24, size, true);
+    return buf;
+  }
+  throw new Error(`no central entry for ${name}`);
+}
+
+describe("digestAsset refuses a deflate bomb in app.json", () => {
+  it("rejects on the declared size without inflating anything", async () => {
+    const zip = declareUncompressedSize(goodZip(), "app.json", MAX_ZIP_APP_JSON_BYTES + 1);
+    const kv = new FakeKV();
+    const spy = vi.spyOn(_deps, "readZipFile");
+    try {
+      expect(await digestAsset(kv as never, serve(zip).fetch, key, asset, { remaining: 5 })).toEqual({ rejected: "zip-app-json-invalid" });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(JSON.parse(kv.store.get(key)!)).toEqual({ rejected: "zip-app-json-invalid" });
+  });
+  it("passes the inflate cap down to readZipFile", async () => {
+    const spy = vi.spyOn(_deps, "readZipFile");
+    try {
+      await digestAsset(new FakeKV() as never, serve(goodZip()).fetch, key, asset, { remaining: 5 });
+      expect(spy).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "app.json" }), MAX_ZIP_APP_JSON_BYTES);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it("truncates a hostile id in the id-mismatch reason", async () => {
+    const longId = "com.ex." + "a".repeat(32) + "." + "b".repeat(32) + "." + "c".repeat(32);
+    const zip = buildZip([{ name: "app.json", data: JSON.stringify({ id: longId }) }, { name: "main.lua", data: "" }]);
+    const rec = await digestAsset(new FakeKV() as never, serve(zip).fetch, key, asset, { remaining: 5 }, "com.ex.snake");
+    expect(rec).toEqual({ rejected: `id-mismatch:${longId.slice(0, 60)}` });
+    expect((rec as { rejected: string }).rejected.length).toBeLessThanOrEqual("id-mismatch:".length + 60);
+  });
+  it("caches the record with a 90-day expiry", async () => {
+    const puts: Array<{ key: string; options?: { expirationTtl?: number } }> = [];
+    class RecordingKV extends FakeKV {
+      async put(k: string, v: string, options?: { expirationTtl?: number }): Promise<void> {
+        puts.push({ key: k, options });
+        await super.put(k, v, options);
+      }
+    }
+    await digestAsset(new RecordingKV() as never, serve(goodZip()).fetch, key, asset, { remaining: 5 });
+    expect(puts).toEqual([{ key, options: { expirationTtl: 60 * 60 * 24 * 90 } }]);
   });
 });

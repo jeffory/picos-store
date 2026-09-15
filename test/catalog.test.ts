@@ -74,6 +74,18 @@ describe("emitCatalog", () => {
 });
 
 describe("emitDebugCatalog", () => {
+  it("truncates author-controlled reasons, repos and warnings", () => {
+    const json = emitDebugCatalog(fixtureCatalog(), {
+      rejected: [{ repo: "r".repeat(5 * 1024), reason: "asset-not-found:" + "z".repeat(5 * 1024) }],
+      warnings: ["w".repeat(5 * 1024)],
+    });
+    const obj = JSON.parse(json);
+    expect(obj.rejected[0].reason).toHaveLength(200);
+    expect(obj.rejected[0].repo).toHaveLength(200);
+    expect(obj.warnings[0]).toHaveLength(300);
+    expect(obj.rejected[0].reason.startsWith("asset-not-found:")).toBe(true);
+    expect(luaParseCatalog(json).apps).toHaveLength(1);
+  });
   it("adds rejected and warnings and still parses on device", () => {
     const json = emitDebugCatalog(fixtureCatalog(), { rejected: [{ repo: "a/b", reason: "no-release" }], warnings: ["w"] });
     const obj = JSON.parse(json);

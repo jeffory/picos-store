@@ -93,6 +93,56 @@ describe("refresh", () => {
     expect(res.ok && res.rejected).toEqual([{ repo: "b/app", reason: "id-claimed-by:a/app" }]);
     expect(res.ok && res.appCount).toBe(1);
   });
+  it("claims dirnames as well as ids, so two repos cannot share an install directory", async () => {
+    const { env: e, kv } = env();
+    const { fetch } = github([
+      { owner: "a", name: "first", stars: 5, appJson: manifest("com.a.snake"), zip: zipFor("com.a.snake") },
+      { owner: "b", name: "second", stars: 1, appJson: manifest("com.b.snake"), zip: zipFor("com.b.snake") },
+    ]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.appCount).toBe(1);
+    expect(res.ok && res.rejected).toEqual([{ repo: "b/second", reason: "dirname-claimed-by:a/first" }]);
+    expect(kv.store.get("claim:dir:snake")).toBe("a/first");
+    expect(kv.store.get("claim:com.a.snake")).toBe("a/first");
+  });
+  it("honours a persisted dirname claim on a later run", async () => {
+    const { env: e, kv } = env();
+    await kv.put("claim:dir:snake", "a/first");
+    const { fetch } = github([{ owner: "b", name: "second", appJson: manifest("com.b.snake"), zip: zipFor("com.b.snake") }]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.appCount).toBe(0);
+    expect(res.ok && res.rejected).toEqual([{ repo: "b/second", reason: "dirname-claimed-by:a/first" }]);
+  });
+  it("refuses a dirname the firmware itself ships", async () => {
+    const { env: e } = env();
+    const shady = JSON.stringify({ id: "com.ex.shady", name: "Shady", version: "1.0.0", dirname: "store" });
+    const { fetch } = github([{ owner: "ex", name: "shady", appJson: shady, zip: zipFor("com.ex.shady") }]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.rejected).toEqual([{ repo: "ex/shady", reason: "dirname-reserved" }]);
+  });
+  it("keeps going when one repo throws unexpectedly", async () => {
+    class ThrowingKV extends FakeKV {
+      async get(key: string): Promise<string | null> {
+        if (key === "claim:com.ex.bad") throw new TypeError("kv exploded");
+        return super.get(key);
+      }
+    }
+    const { env: e, r2 } = env(new ThrowingKV());
+    const { fetch } = github([{ owner: "ex", name: "bad", stars: 9 }, { owner: "ex", name: "good", stars: 1 }]);
+    const res = await refresh(e, { fetch });
+    expect(res.ok && res.appCount).toBe(1);
+    expect(res.ok && res.rejected).toEqual([{ repo: "ex/bad", reason: "digest-error:TypeError" }]);
+    expect(luaParseCatalog(r2.store.get(CATALOG_KEY)!.body).apps.map((a) => a.id)).toEqual(["com.ex.good"]);
+  });
+  it("breaks star ties by app name, then by repository", async () => {
+    const { env: e, r2 } = env();
+    const { fetch } = github([
+      { owner: "a", name: "one", stars: 3, appJson: manifest("com.a.one", "Zeta"), zip: zipFor("com.a.one") },
+      { owner: "b", name: "two", stars: 3, appJson: manifest("com.b.two", "Alpha"), zip: zipFor("com.b.two") },
+    ]);
+    await refresh(e, { fetch });
+    expect(luaParseCatalog(r2.store.get(CATALOG_KEY)!.body).apps.map((a) => a.name)).toEqual(["Alpha", "Zeta"]);
+  });
   it("applies the blocklist", async () => {
     const { env: e, kv } = env();
     await kv.put("block:ex/evil", "1");

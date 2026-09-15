@@ -76,8 +76,14 @@ export function emitCatalog(catalog: Catalog): string {
   return "{" + parts.join(",") + "}";
 }
 
+/** Debug-file bounds: reasons and warnings embed author-controlled text, so they are capped. */
+export const DEBUG_REASON_MAX = 200;
+export const DEBUG_WARNING_MAX = 300;
+
 export function emitDebugCatalog(catalog: Catalog, debug: DebugInfo): string {
   const base = emitCatalog(catalog);
-  const extra = JSON.stringify({ rejected: debug.rejected, warnings: debug.warnings }).slice(1, -1);
+  const rejected = debug.rejected.map((r) => ({ repo: r.repo.slice(0, DEBUG_REASON_MAX), reason: r.reason.slice(0, DEBUG_REASON_MAX) }));
+  const warnings = debug.warnings.map((w) => w.slice(0, DEBUG_WARNING_MAX));
+  const extra = JSON.stringify({ rejected, warnings }).slice(1, -1);
   return base.slice(0, -1) + "," + extra + "}";
 }

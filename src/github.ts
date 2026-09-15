@@ -23,6 +23,8 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null;
 const s = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+/** Strips the two characters that could close a GraphQL string literal before interpolation. */
+const ident = (v: string): string => v.replace(/["\\]/g, "");
 
 export function createGitHubClient(fetchFn: typeof fetch, token: string): GitHubClient {
   const headers = {
@@ -105,7 +107,7 @@ export function createGitHubClient(fetchFn: typeof fetch, token: string): GitHub
       for (let i = 0; i < repos.length; i += BATCH) {
         const batch = repos.slice(i, i + BATCH);
         const fields = batch.map((r, j) =>
-          `r${j}: repository(owner: "${r.owner}", name: "${r.name}") { latestRelease { tagName releaseAssets(first: 20) { nodes { id name size downloadUrl } } } }`);
+          `r${j}: repository(owner: "${ident(r.owner)}", name: "${ident(r.name)}") { latestRelease { tagName isDraft isPrerelease releaseAssets(first: 20) { nodes { id name size downloadUrl } } } }`);
         const { data, errors } = await graphql(`query { ${fields.join(" ")} }`);
         batch.forEach((r, j) => {
           const alias = `r${j}`, node = data[alias];
@@ -114,7 +116,8 @@ export function createGitHubClient(fetchFn: typeof fetch, token: string): GitHub
           const rel = node.latestRelease;
           if (!isObj(rel)) { out.set(r.fullName, { ok: true, value: null }); return; }
           const tagName = s(rel.tagName);
-          if (!tagName) { out.set(r.fullName, { ok: true, value: null }); return; }
+          // `latestRelease` should already exclude drafts and prereleases; this makes that contract explicit.
+          if (!tagName || rel.isDraft === true || rel.isPrerelease === true) { out.set(r.fullName, { ok: true, value: null }); return; }
           const nodes = isObj(rel.releaseAssets) ? rel.releaseAssets.nodes : [];
           out.set(r.fullName, { ok: true, value: { tagName, assets: parseAssets(nodes) } });
         });
@@ -128,8 +131,8 @@ export function createGitHubClient(fetchFn: typeof fetch, token: string): GitHub
         const batch = items.slice(i, i + BATCH);
         const fields = batch.map((it, j) => {
           const [owner, name] = it.fullName.split("/");
-          const expr = `${it.tag}:app.json`.replace(/["\\]/g, "");
-          return `r${j}: repository(owner: "${owner}", name: "${name}") { object(expression: "${expr}") { ... on Blob { text } } }`;
+          const expr = ident(`${it.tag}:app.json`);
+          return `r${j}: repository(owner: "${ident(owner)}", name: "${ident(name)}") { object(expression: "${expr}") { ... on Blob { text } } }`;
         });
         const { data, errors } = await graphql(`query { ${fields.join(" ")} }`);
         batch.forEach((it, j) => {

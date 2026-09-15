@@ -1,3 +1,8 @@
+// A TypeScript port of the regex JSON reader in the on-device store app: apps/store/main.lua
+// lines 141-192 (luaJsonGet / luaJsonGetBool / luaStringArray) and 212-284 (parse_catalog_json),
+// as of PicOS develop 7c71fe4. It exists so catalog.test.ts can prove the emitted catalog survives
+// that parser. If main.lua's parser changes, re-port it here or these tests stop meaning anything.
+
 export function luaJsonGet(json: string, key: string): string | null {
   const s = json.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`));
   if (s) return s[1];

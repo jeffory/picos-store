@@ -103,6 +103,62 @@ describe("POST /refresh", () => {
   });
 });
 
+describe("page routes read catalog.json, not the debug snapshot", () => {
+  /** Retention can leave catalog-debug.json listing no apps while catalog.json still has them. */
+  function divergent() {
+    const r2 = new FakeR2(), kv = new FakeKV();
+    void r2.put(CATALOG_KEY, emitCatalog(fixtureCatalog()));
+    void r2.put(DEBUG_KEY, emitDebugCatalog({ ...fixtureCatalog(), apps: [] }, { rejected: [{ repo: "a/b", reason: "no-release" }], warnings: ["w"] }));
+    const e: Env = { PICOS_STORE_BUCKET: r2 as never, PICOS_STORE_KV: kv as never };
+    return { e, r2 };
+  }
+  it("lists the app from the catalog even when the debug file has none", async () => {
+    const { e } = divergent();
+    const html = await (await get("/", e)).text();
+    expect(html).toContain("Snake");
+    expect(html).not.toContain("No apps listed yet");
+  });
+  it("serves the app page from the catalog", async () => {
+    const { e } = divergent();
+    expect((await get("/apps/com.example.snake", e)).status).toBe(200);
+  });
+  it("still shows rejections on /status", async () => {
+    const { e } = divergent();
+    const html = await (await get("/status", e)).text();
+    expect(html).toContain("no-release");
+    expect(html).toContain("a/b");
+  });
+  it("counts apps from the catalog and rejections from the debug file", async () => {
+    const { e } = divergent();
+    expect(await (await get("/health", e)).json()).toEqual({ ok: true, generatedAt: "2026-09-15T10:00:00Z", apps: 1, rejected: 1 });
+  });
+  it("reports rejected: null when the debug file is missing", async () => {
+    const r2 = new FakeR2(), kv = new FakeKV();
+    void r2.put(CATALOG_KEY, emitCatalog(fixtureCatalog()));
+    const e: Env = { PICOS_STORE_BUCKET: r2 as never, PICOS_STORE_KV: kv as never };
+    expect(await (await get("/health", e)).json()).toEqual({ ok: true, generatedAt: "2026-09-15T10:00:00Z", apps: 1, rejected: null });
+    expect((await get("/", e)).status).toBe(200);
+  });
+  it("503s /status when only the debug file is missing", async () => {
+    const r2 = new FakeR2(), kv = new FakeKV();
+    void r2.put(CATALOG_KEY, emitCatalog(fixtureCatalog()));
+    const e: Env = { PICOS_STORE_BUCKET: r2 as never, PICOS_STORE_KV: kv as never };
+    expect((await get("/status", e)).status).toBe(503);
+  });
+});
+
+describe("unexpected failures", () => {
+  it("returns 500 with no-store and no detail when a snapshot cannot be parsed", async () => {
+    const r2 = new FakeR2(), kv = new FakeKV();
+    void r2.put(CATALOG_KEY, "{not json");
+    const e: Env = { PICOS_STORE_BUCKET: r2 as never, PICOS_STORE_KV: kv as never };
+    const res = await get("/", e);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(await res.json()).toEqual({ error: "internal" });
+  });
+});
+
 describe("scheduled", () => {
   it("runs refresh via waitUntil", async () => {
     const { e } = env();
@@ -112,5 +168,12 @@ describe("scheduled", () => {
     expect(waited).toHaveLength(1);
     await waited[0];
     expect(fake).toHaveBeenCalledWith(e);
+  });
+  it("fails the cron invocation when the refresh fails", async () => {
+    const { e } = env();
+    const fake = vi.fn().mockResolvedValue({ ok: false, error: "boom" });
+    const waited: Promise<unknown>[] = [];
+    worker.scheduled({} as never, e, { waitUntil: (p: Promise<unknown>) => waited.push(p) } as never, { refresh: fake });
+    await expect(waited[0]).rejects.toThrow(/picos-store refresh failed: boom/);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateRepo, MAX_ASSET_BYTES } from "../src/validate";
+import { LIMITS } from "../src/catalog";
 import type { RepoSummary, RepoRelease, Lookup } from "../src/github";
 
 const repo: RepoSummary = { fullName: "ex/snake", owner: "ex", name: "snake", description: "d", stars: 3, pushedAt: "2026-09-01T00:00:00Z", htmlUrl: "https://github.com/ex/snake" };
@@ -36,6 +37,13 @@ describe("validateRepo", () => {
     ["bad-id", rel(), manifest({ id: "Snake" })],
     ["bad-id", rel(), manifest({ id: "snake" })],
     ["bad-id", rel(), manifest({ id: "com.ex.sn/ake" })],
+    ["bad-id", rel(), manifest({ id: "com." + "a".repeat(600) })],
+    ["bad-id", rel(), manifest({ id: "com.ex." + "a".repeat(33) })],
+    ["bad-id", rel(), manifest({ id: "a.b.c.d.e.f" })],
+    ["missing-field:name", rel(), manifest({ name: "   " })],
+    ["dirname-reserved", rel(), manifest({ dirname: "store" })],
+    ["dirname-reserved", rel(), manifest({ dirname: "System" })],
+    ["dirname-reserved", rel(), manifest({ id: "com.ex.data" })],
     ["no-zip-asset", rel([asset("snake.tar.gz")]), manifest()],
     ["multiple-zip-assets", rel([asset("a.zip"), asset("b.zip")]), manifest()],
     ["asset-not-found:other.zip", rel(), manifest({ asset: "other.zip" })],
@@ -54,5 +62,60 @@ describe("validateRepo", () => {
   it("carries optional fields through", () => {
     const r = validateRepo(repo, rel(), manifest({ description: "x", long_description: "y", author: "Me", min_firmware: "0.2.0", dirname: "sn", homepage: "https://ex.com", removable: false }));
     expect(r.ok && r.app.manifest).toMatchObject({ description: "x", long_description: "y", author: "Me", min_firmware: "0.2.0", dirname: "sn", homepage: "https://ex.com", removable: false });
+  });
+});
+
+describe("validateRepo bounds every author-controlled string", () => {
+  it("caps a huge long_description at the catalog limit", () => {
+    const r = validateRepo(repo, rel(), manifest({ long_description: "x".repeat(10 * 1024) }));
+    expect(r.ok && r.app.manifest.long_description.length).toBe(LIMITS.long_description);
+  });
+  it("caps name, description, author, version and min_firmware", () => {
+    const r = validateRepo(repo, rel(), manifest({
+      name: "n".repeat(5000), description: "d".repeat(5000), author: "a".repeat(5000),
+      version: "v".repeat(5000), min_firmware: "m".repeat(5000),
+    }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.app.manifest.name.length).toBe(LIMITS.name);
+    expect(r.app.manifest.description.length).toBe(LIMITS.description);
+    expect(r.app.manifest.author.length).toBe(LIMITS.author);
+    expect(r.app.manifest.version.length).toBe(40);
+    expect(r.app.manifest.min_firmware.length).toBe(40);
+  });
+  it("caps requirement entries and drops ones that sanitise away", () => {
+    const r = validateRepo(repo, rel(), manifest({ requirements: ["r".repeat(500), "   ", "audio"] }));
+    expect(r.ok && r.app.manifest.requirements).toEqual(["r".repeat(40), "audio"]);
+  });
+  it("keeps a 5 KB asset name out of the rejection reason", () => {
+    const r = validateRepo(repo, rel(), manifest({ asset: "z".repeat(5 * 1024) }));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason.startsWith("asset-not-found:")).toBe(true);
+    expect(r.reason.length).toBeLessThanOrEqual("asset-not-found:".length + 60);
+  });
+  it("sanitises quotes out of the asset-not-zip reason too", () => {
+    const r = validateRepo(repo, rel([asset("snake.zip"), asset("notes.txt")]), manifest({ asset: "notes.txt" }));
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.reason).toBe("asset-not-zip:notes.txt");
+  });
+  it("accepts an id at the longest permitted shape", () => {
+    const id = ["a".repeat(32), "b".repeat(32), "c".repeat(32), "d".repeat(32), "e".repeat(32)].join(".");
+    const r = validateRepo(repo, rel(), manifest({ id, dirname: "sn" }));
+    expect(r.ok && r.app.manifest.id).toBe(id);
+    expect(`claim:${id}`.length).toBeLessThan(512);
+  });
+  it("lets the first-party repo use a reserved dirname", () => {
+    const firstParty = { ...repo, fullName: "jeffory/picOS", owner: "jeffory", name: "picOS" };
+    const r = validateRepo(firstParty, rel(), manifest({ dirname: "store" }));
+    expect(r.ok && r.app.manifest.dirname).toBe("store");
+  });
+  it("falls back to the repo URL for a blank homepage", () => {
+    const blank = validateRepo(repo, rel(), manifest({ homepage: "   " }));
+    expect(blank.ok && blank.app.manifest.homepage).toBe("https://github.com/ex/snake");
+    // Text that survives the blank check but sanitises away still falls back.
+    const stripped = validateRepo(repo, rel(), manifest({ homepage: "\u0001\u0002" }));
+    expect(stripped.ok && stripped.app.manifest.homepage).toBe("https://github.com/ex/snake");
   });
 });

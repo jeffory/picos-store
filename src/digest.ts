@@ -1,10 +1,15 @@
 import { readZipEntries, readZipFile, ZipError } from "./zip";
 import type { ReleaseAsset } from "./github";
-import type { AppType } from "./catalog";
+import { sanitize, type AppType } from "./catalog";
 import { MAX_ASSET_BYTES, APP_ID_RE } from "./validate";
 
 export const MAX_DIGESTS_PER_RUN = 10;
 const DOWNLOAD_TIMEOUT_MS = 25_000;
+/** A manifest is a few hundred bytes; anything larger is a mistake or a deflate bomb. */
+export const MAX_ZIP_APP_JSON_BYTES = 256 * 1024;
+/** KV records are cheap but not free; a release nobody asks about again expires. */
+const DIGEST_TTL_SECONDS = 60 * 60 * 24 * 90;
+const REASON_MAX = 60;
 
 export type DigestRecord = { sha256: string; size: number; appType: AppType; zipAppId: string } | { rejected: string };
 export interface DigestBudget { remaining: number; }
@@ -43,9 +48,14 @@ async function inspectZip(buf: ArrayBuffer, expectedId: string | undefined): Pro
   const names = new Set(entries.map((e) => e.name));
   const hasLua = names.has("main.lua"), hasElf = names.has("main.elf");
   if (!names.has("app.json") || (!hasLua && !hasElf)) return { rejected: "zip-layout" };
+  const manifestEntry = entries.find((e) => e.name === "app.json")!;
+  // Refuse before inflating: a deflate bomb declares a huge uncompressed size in a tiny archive.
+  if (manifestEntry.uncompressedSize > MAX_ZIP_APP_JSON_BYTES || manifestEntry.compressedSize > MAX_ZIP_APP_JSON_BYTES) {
+    return { rejected: "zip-app-json-invalid" };
+  }
   let zipAppId: string;
   try {
-    const text = new TextDecoder().decode(await _deps.readZipFile(buf, entries.find((e) => e.name === "app.json")!));
+    const text = new TextDecoder().decode(await _deps.readZipFile(buf, manifestEntry, MAX_ZIP_APP_JSON_BYTES));
     const parsed: unknown = JSON.parse(text);
     const id = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>).id : undefined;
     if (typeof id !== "string" || !APP_ID_RE.test(id)) return { rejected: "zip-app-json-invalid" };
@@ -54,7 +64,7 @@ async function inspectZip(buf: ArrayBuffer, expectedId: string | undefined): Pro
     if (e instanceof ZipError || e instanceof SyntaxError) return { rejected: "zip-app-json-invalid" };
     throw e;
   }
-  if (expectedId !== undefined && zipAppId !== expectedId) return { rejected: `id-mismatch:${zipAppId}` };
+  if (expectedId !== undefined && zipAppId !== expectedId) return { rejected: `id-mismatch:${sanitize(zipAppId, REASON_MAX)}` };
   return { appType: hasElf ? "native" : "lua", zipAppId };
 }
 
@@ -93,6 +103,6 @@ export async function digestAsset(
   const record: DigestRecord = "rejected" in inspected
     ? inspected
     : { sha256: hex(await crypto.subtle.digest("SHA-256", buf)), size: buf.byteLength, appType: inspected.appType, zipAppId: inspected.zipAppId };
-  await kv.put(key, JSON.stringify(record));
+  await kv.put(key, JSON.stringify(record), { expirationTtl: DIGEST_TTL_SECONDS });
   return record;
 }

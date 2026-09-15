@@ -35,7 +35,7 @@ export function renderPublishPage(): string {
 <tr><td><code>no-app-json</code></td><td><code>app.json</code> is missing at the release tag.</td></tr>
 <tr><td><code>app-json-invalid</code></td><td><code>app.json</code> is not a JSON object.</td></tr>
 <tr><td><code>missing-field:&lt;name&gt;</code></td><td>A required field is absent or not a string.</td></tr>
-<tr><td><code>bad-id</code></td><td>Id must be reverse-DNS: lower-case, digits, at least one dot, e.g. <code>com.example.snake</code>.</td></tr>
+<tr><td><code>bad-id</code></td><td>Id must be reverse-DNS: lower-case letters and digits in 2–5 dot-separated segments of at most 32 characters each, e.g. <code>com.example.snake</code>.</td></tr>
 <tr><td><code>bad-dirname</code></td><td><code>dirname</code> must be 1–32 characters of letters, digits, <code>_</code> or <code>-</code>; no slashes or dots.</td></tr>
 <tr><td><code>no-zip-asset</code> / <code>multiple-zip-assets</code></td><td>The release needs exactly one ZIP, or name it in <code>asset</code>.</td></tr>
 <tr><td><code>asset-not-found:&lt;name&gt;</code></td><td>The <code>asset</code> named in <code>app.json</code> is not on the release.</td></tr>
@@ -46,8 +46,10 @@ export function renderPublishPage(): string {
 <tr><td><code>zip-app-json-invalid</code></td><td>The <code>app.json</code> inside the ZIP is unreadable or has a bad id.</td></tr>
 <tr><td><code>id-mismatch:&lt;id&gt;</code></td><td>The ZIP's id differs from the repository's.</td></tr>
 <tr><td><code>id-claimed-by:&lt;repo&gt;</code></td><td>Another repository already publishes this id.</td></tr>
+<tr><td><code>dirname-claimed-by:&lt;repo&gt;</code></td><td>Another repository already publishes this <code>dirname</code>. The store installs into <code>/apps/&lt;dirname&gt;</code> and clears it first, so a dirname belongs to one repository. Set a different <code>dirname</code> in <code>app.json</code>.</td></tr>
+<tr><td><code>dirname-reserved</code></td><td>The <code>dirname</code> is one PicOS itself ships: <code>store</code>, <code>updater</code>, <code>filemanager</code>, <code>editor</code>, <code>terminal_example</code>, <code>calculator</code>, <code>system</code>, <code>data</code>. Pick another.</td></tr>
 <tr><td><code>pending-digest</code></td><td>New release queued for hashing; it will appear on a later refresh.</td></tr>
-<tr><td><code>asset-unreachable:&lt;status&gt;</code></td><td>The ZIP could not be downloaded; retried next refresh.</td></tr>
+<tr><td><code>asset-unreachable:&lt;status|error&gt;</code></td><td>The ZIP could not be downloaded — an HTTP status, or the name of the network error; retried next refresh.</td></tr>
 <tr><td><code>digest-error:&lt;name&gt;</code></td><td>The index hit an unexpected error while reading the ZIP; it will retry on the next refresh.</td></tr>
 <tr><td><code>blocked</code></td><td>Delisted by the maintainer.</td></tr>
 </tbody></table></div>

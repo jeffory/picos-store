@@ -45,7 +45,37 @@ export function readZipEntries(buf: ArrayBuffer): ZipEntry[] {
   return entries;
 }
 
-export async function readZipFile(buf: ArrayBuffer, entry: ZipEntry): Promise<Uint8Array> {
+/**
+ * Drains an inflate stream, refusing to buffer more than `maxBytes`. The uncompressed size in the
+ * central directory is author-controlled and may lie, so what is counted is what actually arrives.
+ */
+async function readCapped(stream: ReadableStream, maxBytes: number): Promise<Uint8Array> {
+  const reader = (stream as ReadableStream<Uint8Array>).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new ZipError("inflated size exceeds limit");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of chunks) { out.set(c, p); p += c.byteLength; }
+  return out;
+}
+
+/** `maxBytes` bounds the inflated output; without it the whole entry is buffered. */
+export async function readZipFile(buf: ArrayBuffer, entry: ZipEntry, maxBytes?: number): Promise<Uint8Array> {
   const view = new DataView(buf);
   const p = entry.localHeaderOffset;
   if (p + 30 > buf.byteLength || view.getUint32(p, true) !== LOC_SIG) throw new ZipError("bad local header");
@@ -59,17 +89,21 @@ export async function readZipFile(buf: ArrayBuffer, entry: ZipEntry): Promise<Ui
   if (entry.method !== 8) throw new ZipError(`unsupported compression method ${entry.method}`);
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
+  // Failures on the write side re-surface on the readable; swallowing them here keeps the
+  // rejection from going unhandled when the reader cancels after hitting the cap.
+  void (async () => {
+    try {
+      await writer.write(data);
+      await writer.close();
+    } catch { /* reported by the read side */ }
+  })();
   let out: Uint8Array;
   try {
-    const [, buffer] = await Promise.all([
-      (async () => {
-        await writer.write(data);
-        await writer.close();
-      })(),
-      new Response(ds.readable).arrayBuffer(),
-    ]);
-    out = new Uint8Array(buffer);
-  } catch {
+    out = maxBytes === undefined
+      ? new Uint8Array(await new Response(ds.readable).arrayBuffer())
+      : await readCapped(ds.readable, maxBytes);
+  } catch (e) {
+    if (e instanceof ZipError) throw e;
     throw new ZipError("inflate failed");
   }
   if (out.length !== entry.uncompressedSize) throw new ZipError("size mismatch after inflate");

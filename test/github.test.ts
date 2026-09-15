@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createGitHubClient, SEARCH_QUERY, type RepoSummary } from "../src/github";
 import { routeFetch, json } from "./helpers/fakes";
+import { validateRepo } from "../src/validate";
 
 function repoItem(i: number, extra: Record<string, unknown> = {}) {
   return {
@@ -83,6 +84,43 @@ describe("fetchReleases", () => {
     const map = await createGitHubClient(fetch, "tok").fetchReleases(repos.slice(0, 2));
     expect(map.get("o0/r0")).toEqual({ ok: false, error: "github-error: Could not resolve" });
     expect(map.get("o1/r1")).toEqual({ ok: true, value: null });
+  });
+  it("treats a draft or prerelease latestRelease as no release at all", async () => {
+    const { fetch } = routeFetch({
+      "POST api.github.com/graphql": async (req) => {
+        const { query } = (await req.json()) as { query: string };
+        expect(query).toContain("isDraft");
+        expect(query).toContain("isPrerelease");
+        const release = (over: Record<string, unknown>) => ({
+          latestRelease: {
+            tagName: "v1", isDraft: false, isPrerelease: false,
+            releaseAssets: { nodes: [{ id: "A1", name: "r.zip", size: 10, downloadUrl: "https://github.com/o/r/releases/download/v1/r.zip" }] },
+            ...over,
+          },
+        });
+        return json({ data: { r0: release({ isPrerelease: true }), r1: release({ isDraft: true }), r2: release({}) } });
+      },
+    });
+    const map = await createGitHubClient(fetch, "tok").fetchReleases(repos.slice(0, 3));
+    expect(map.get("o0/r0")).toEqual({ ok: true, value: null });
+    expect(map.get("o1/r1")).toEqual({ ok: true, value: null });
+    expect(map.get("o2/r2")).toMatchObject({ ok: true, value: { tagName: "v1" } });
+    // A prerelease therefore reaches the author as no-release, not as a broken listing.
+    const appJson = { ok: true as const, value: JSON.stringify({ id: "com.o0.r0", name: "R", version: "1.0.0" }) };
+    expect(validateRepo(repos[0], map.get("o0/r0")!, appJson)).toEqual({ ok: false, reason: "no-release" });
+  });
+  it("strips quotes and backslashes from owner and name before embedding them", async () => {
+    let captured = "";
+    const { fetch } = routeFetch({
+      "POST api.github.com/graphql": async (req) => {
+        captured = ((await req.json()) as { query: string }).query;
+        return json({ data: { r0: { latestRelease: null } } });
+      },
+    });
+    const hostile: RepoSummary = { fullName: 'o"/r\\', owner: 'o") { evil } x("', name: 'r\\', description: null, stars: 0, pushedAt: null, htmlUrl: "https://github.com/o/r" };
+    await createGitHubClient(fetch, "tok").fetchReleases([hostile]);
+    expect(captured).toContain('repository(owner: "o) { evil } x(", name: "r")');
+    expect(captured.match(/repository\(/g)).toHaveLength(1);
   });
   it("throws when GraphQL itself fails", async () => {
     const { fetch } = routeFetch({ "POST api.github.com/graphql": () => json({}, 502) });

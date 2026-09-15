@@ -29,7 +29,7 @@ async function readSnapshot(env: Env, key: string): Promise<{ text: string; etag
   return { text: await obj.text(), etag: obj.httpEtag };
 }
 
-/** Parses the snapshot the Worker wrote. Shape is trusted because emitCatalog produced it. */
+/** Parses either snapshot the Worker wrote: catalog.json has no `rejected`/`warnings`, catalog-debug.json does. */
 function parseSnapshot(text: string): { catalog: Catalog; debug: DebugInfo } {
   const raw = JSON.parse(text) as { meta: { generated_at: string }; firmware?: Catalog["firmware"]; apps: CatalogApp[]; rejected?: Rejection[]; warnings?: string[] };
   return {
@@ -47,6 +47,15 @@ async function serveJson(request: Request, env: Env, key: string): Promise<Respo
 }
 
 export async function handleRequest(request: Request, env: Env, deps: Deps = {}): Promise<Response> {
+  try {
+    return await route(request, env, deps);
+  } catch {
+    // Never leak an internal message to the caller; the platform log has the stack.
+    return new Response(JSON.stringify({ error: "internal" }), { status: 500, headers: { "Content-Type": JSON_TYPE, "Cache-Control": "no-store" } });
+  }
+}
+
+async function route(request: Request, env: Env, deps: Deps): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
@@ -63,7 +72,23 @@ export async function handleRequest(request: Request, env: Env, deps: Deps = {})
   if (path === "/catalog-debug.json") return serveJson(request, env, DEBUG_KEY);
   if (path === "/publish") return html(renderPublishPage());
 
-  if (path === "/health" || path === "/" || path === "/status" || path.startsWith("/apps/")) {
+  // The pages render the same snapshot the device downloads; only /status reads the debug file,
+  // whose retention rules let it disagree with catalog.json.
+  if (path === "/health") {
+    const snap = await readSnapshot(env, CATALOG_KEY);
+    if (!snap) return unavailable();
+    const { catalog } = parseSnapshot(snap.text);
+    const debugSnap = await readSnapshot(env, DEBUG_KEY);
+    const rejected = debugSnap ? parseSnapshot(debugSnap.text).debug.rejected.length : null;
+    return new Response(JSON.stringify({ ok: true, generatedAt: catalog.generated_at, apps: catalog.apps.length, rejected }), { headers: { "Content-Type": JSON_TYPE, "Cache-Control": "no-store" } });
+  }
+  if (path === "/status") {
+    const snap = await readSnapshot(env, DEBUG_KEY);
+    if (!snap) return unavailable();
+    const { catalog, debug } = parseSnapshot(snap.text);
+    return html(renderStatusPage(catalog, debug));
+  }
+  if (path === "/" || path.startsWith("/apps/")) {
     let id: string | null = null;
     if (path.startsWith("/apps/")) {
       try {
@@ -73,14 +98,10 @@ export async function handleRequest(request: Request, env: Env, deps: Deps = {})
       }
       if (!id) return notFound();
     }
-    const snap = await readSnapshot(env, DEBUG_KEY);
+    const snap = await readSnapshot(env, CATALOG_KEY);
     if (!snap) return unavailable();
-    const { catalog, debug } = parseSnapshot(snap.text);
-    if (path === "/health") {
-      return new Response(JSON.stringify({ ok: true, generatedAt: catalog.generated_at, apps: catalog.apps.length, rejected: debug.rejected.length }), { headers: { "Content-Type": JSON_TYPE, "Cache-Control": "no-store" } });
-    }
+    const { catalog } = parseSnapshot(snap.text);
     if (path === "/") return html(renderIndexPage(catalog));
-    if (path === "/status") return html(renderStatusPage(catalog, debug));
     const app = catalog.apps.find((a) => a.id === id);
     return app ? html(renderAppPage(app, catalog)) : notFound();
   }
@@ -92,6 +113,10 @@ export default {
     return handleRequest(request, env);
   },
   scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext, deps: Deps = {}): void {
-    ctx.waitUntil((deps.refresh ?? realRefresh)(env));
+    // Throwing marks the cron invocation failed, so a broken refresh is visible in Workers observability.
+    ctx.waitUntil((async () => {
+      const result = await (deps.refresh ?? realRefresh)(env);
+      if (!result.ok) throw new Error(`picos-store refresh failed: ${result.error}`);
+    })());
   },
 };

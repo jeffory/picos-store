@@ -72,35 +72,47 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
     const result = validateRepo(repo, releases.get(repo.fullName) ?? { ok: false, error: "github-error: no data" }, manifests.get(repo.fullName) ?? { ok: true, value: null });
     if (result.ok) validated.push(result.app); else rejected.push({ repo: repo.fullName, reason: result.reason });
   }
-  validated.sort((a, b) => b.repo.stars - a.repo.stars || a.repo.fullName.localeCompare(b.repo.fullName));
+  validated.sort((a, b) => b.repo.stars - a.repo.stars || a.manifest.name.localeCompare(b.manifest.name) || a.repo.fullName.localeCompare(b.repo.fullName));
 
   const apps: CatalogApp[] = [];
   const claims: Array<{ key: string; owner: string }> = [];
   const pendingOwners = new Map<string, string>();
   const budget: DigestBudget = { remaining: MAX_DIGESTS_PER_RUN };
   for (const app of validated) {
-    const claimKey = `claim:${app.manifest.id}`;
-    const existingOwner = await env.PICOS_STORE_KV.get(claimKey);
-    const owner = existingOwner ?? pendingOwners.get(claimKey) ?? null;
-    if (owner && owner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `id-claimed-by:${owner}` }); continue; }
+    try {
+      const claimKey = `claim:${app.manifest.id}`;
+      const existingOwner = await env.PICOS_STORE_KV.get(claimKey);
+      const owner = existingOwner ?? pendingOwners.get(claimKey) ?? null;
+      if (owner && owner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `id-claimed-by:${owner}` }); continue; }
 
-    const key = digestKey(app.repo.fullName, app.release.tagName, app.asset.id);
-    const outcome = await digestAsset(env.PICOS_STORE_KV, fetchFn, key, app.asset, budget, app.manifest.id);
-    if (outcome === "pending") { rejected.push({ repo: app.repo.fullName, reason: "pending-digest" }); continue; }
-    if ("transient" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.transient }); continue; }
-    if ("rejected" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.rejected }); continue; }
+      // The store deletes /apps/<dirname> before extracting, so a dirname is as load-bearing as an id.
+      const dirKey = `claim:dir:${app.manifest.dirname}`;
+      const existingDirOwner = await env.PICOS_STORE_KV.get(dirKey);
+      const dirOwner = existingDirOwner ?? pendingOwners.get(dirKey) ?? null;
+      if (dirOwner && dirOwner !== app.repo.fullName) { rejected.push({ repo: app.repo.fullName, reason: `dirname-claimed-by:${dirOwner}` }); continue; }
 
-    if (!existingOwner) { pendingOwners.set(claimKey, app.repo.fullName); claims.push({ key: claimKey, owner: app.repo.fullName }); }
-    for (const w of app.warnings) warnings.push(`${app.repo.fullName}: ${w}`);
-    apps.push({
-      id: app.manifest.id, dirname: app.manifest.dirname, name: app.manifest.name, description: app.manifest.description,
-      long_description: app.manifest.long_description, version: app.manifest.version, author: app.manifest.author,
-      category: app.manifest.category, app_type: outcome.appType, min_firmware: app.manifest.min_firmware,
-      size_kb: Math.ceil(outcome.size / 1024), repo: app.repo.fullName, release_tag: app.release.tagName,
-      asset: app.asset.name, sha256: outcome.sha256, homepage: app.manifest.homepage ?? app.repo.htmlUrl,
-      removable: app.manifest.removable, requirements: app.manifest.requirements, stars: app.repo.stars,
-      pushed_at: app.repo.pushedAt ?? "",
-    });
+      const key = digestKey(app.repo.fullName, app.release.tagName, app.asset.id);
+      const outcome = await digestAsset(env.PICOS_STORE_KV, fetchFn, key, app.asset, budget, app.manifest.id);
+      if (outcome === "pending") { rejected.push({ repo: app.repo.fullName, reason: "pending-digest" }); continue; }
+      if ("transient" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.transient }); continue; }
+      if ("rejected" in outcome) { rejected.push({ repo: app.repo.fullName, reason: outcome.rejected }); continue; }
+
+      if (!existingOwner) { pendingOwners.set(claimKey, app.repo.fullName); claims.push({ key: claimKey, owner: app.repo.fullName }); }
+      if (!existingDirOwner) { pendingOwners.set(dirKey, app.repo.fullName); claims.push({ key: dirKey, owner: app.repo.fullName }); }
+      for (const w of app.warnings) warnings.push(`${app.repo.fullName}: ${w}`);
+      apps.push({
+        id: app.manifest.id, dirname: app.manifest.dirname, name: app.manifest.name, description: app.manifest.description,
+        long_description: app.manifest.long_description, version: app.manifest.version, author: app.manifest.author,
+        category: app.manifest.category, app_type: outcome.appType, min_firmware: app.manifest.min_firmware,
+        size_kb: Math.ceil(outcome.size / 1024), repo: app.repo.fullName, release_tag: app.release.tagName,
+        asset: app.asset.name, sha256: outcome.sha256, homepage: app.manifest.homepage ?? app.repo.htmlUrl,
+        removable: app.manifest.removable, requirements: app.manifest.requirements, stars: app.repo.stars,
+        pushed_at: app.repo.pushedAt ?? "",
+      });
+    } catch (e) {
+      // One repo's unexpected failure must not abort the run; the rest of the catalog still publishes.
+      rejected.push({ repo: app.repo.fullName, reason: `digest-error:${e instanceof Error ? e.name : "error"}` });
+    }
   }
   return { apps, rejected, claims };
 }

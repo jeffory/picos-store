@@ -1,7 +1,8 @@
 export class FakeKV {
   store = new Map<string, string>();
   async get(key: string): Promise<string | null> { return this.store.get(key) ?? null; }
-  async put(key: string, value: string): Promise<void> { this.store.set(key, value); }
+  /** `options` (expirationTtl and friends) is accepted and ignored, as the real binding allows. */
+  async put(key: string, value: string, _options?: { expirationTtl?: number }): Promise<void> { this.store.set(key, value); }
   async delete(key: string): Promise<void> { this.store.delete(key); }
   async list(opts: { prefix?: string; cursor?: string } = {}): Promise<{ keys: Array<{ name: string }>; list_complete: true; cursor?: string }> {
     const keys = [...this.store.keys()].filter((k) => !opts.prefix || k.startsWith(opts.prefix)).map((name) => ({ name }));

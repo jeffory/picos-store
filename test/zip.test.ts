@@ -45,6 +45,19 @@ describe("readZipFile", () => {
     expect(entry.method).toBe(8);
     expect(dec.decode(await readZipFile(zip.buffer, entry))).toBe("hello hello hello hello");
   });
+  it("rejects a corrupted deflate entry as ZipError", async () => {
+    const garbage = new Uint8Array([0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]);
+    const zip = new Uint8Array(buildZip([{ name: "g.bin", data: garbage }]));
+    const v = new DataView(zip.buffer);
+    v.setUint16(8, 8, true);                               // local header method
+    v.setUint32(22, 100, true);                            // local uncompressed size
+    const cd = zip.length - 22 - (46 + 5);                 // one central entry, name "g.bin"
+    v.setUint16(cd + 10, 8, true);                         // central method
+    v.setUint32(cd + 24, 100, true);                       // central uncompressed size
+    const [entry] = readZipEntries(zip.buffer);
+    expect(entry.method).toBe(8);
+    await expect(readZipFile(zip.buffer, entry)).rejects.toThrow(ZipError);
+  });
   it("rejects unsupported methods", async () => {
     const zip = new Uint8Array(buildZip([{ name: "a", data: "b" }]));
     const v = new DataView(zip.buffer);

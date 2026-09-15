@@ -59,9 +59,19 @@ export async function readZipFile(buf: ArrayBuffer, entry: ZipEntry): Promise<Ui
   if (entry.method !== 8) throw new ZipError(`unsupported compression method ${entry.method}`);
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
-  void writer.write(data);
-  void writer.close();
-  const out = new Uint8Array(await new Response(ds.readable).arrayBuffer());
+  let out: Uint8Array;
+  try {
+    const [, buffer] = await Promise.all([
+      (async () => {
+        await writer.write(data);
+        await writer.close();
+      })(),
+      new Response(ds.readable).arrayBuffer(),
+    ]);
+    out = new Uint8Array(buffer);
+  } catch {
+    throw new ZipError("inflate failed");
+  }
   if (out.length !== entry.uncompressedSize) throw new ZipError("size mismatch after inflate");
   return out;
 }

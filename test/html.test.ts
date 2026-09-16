@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, renderPage, safeUrl } from "../src/html/layout";
+import { escapeHtml, formatDate, renderPage, safeUrl } from "../src/html/layout";
 import { renderIndexPage } from "../src/html/index";
 import { renderAppPage } from "../src/html/app";
 import { renderStatusPage } from "../src/html/status";
@@ -27,6 +27,15 @@ describe("safeUrl", () => {
   });
 });
 
+describe("formatDate", () => {
+  it("renders ISO timestamps as a readable UTC date", () => {
+    expect(formatDate("2026-09-16T22:31:23.626Z")).toBe("16 Sep 2026, 22:31 UTC");
+  });
+  it("passes unparseable input through", () => {
+    expect(formatDate("soon")).toBe("soon");
+  });
+});
+
 describe("renderPage", () => {
   it("wraps body with title and theme meta", () => {
     const html = renderPage({ title: "T", description: "D", body: "<p>hi</p>" });
@@ -34,6 +43,9 @@ describe("renderPage", () => {
     expect(html).toContain("<title>T</title>");
     expect(html).toContain('name="color-scheme" content="light dark"');
     expect(html).toContain("<p>hi</p>");
+  });
+  it("hides [hidden] elements even where a class sets display (the card filter relies on it)", () => {
+    expect(renderPage({ title: "T", description: "D", body: "" })).toContain("[hidden]{display:none!important}");
   });
 });
 
@@ -48,6 +60,8 @@ describe("renderIndexPage", () => {
     expect(html).toContain('data-category="games"');
     expect(html).toContain('data-stars="17"');
     expect(html).toContain("Firmware 0.1.0");
+    expect(html).toContain('<time datetime="');
+    expect(html).not.toContain("generated 20");
     expect(html).toContain('href="/publish"');
     expect(html.match(/class="card"/g)).toHaveLength(2);
   });
@@ -85,7 +99,7 @@ describe("renderStatusPage", () => {
   });
   it("wraps the rejection table so it can scroll instead of widening the page", () => {
     const html = renderStatusPage(fixtureCatalog(), { rejected: [{ repo: "a/b", reason: "no-release" }], warnings: [] });
-    expect(html).toContain('class="scroll"');
+    expect(html).toMatch(/class="[^"]*\bscroll\b[^"]*"/);
   });
 });
 

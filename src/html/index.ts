@@ -1,5 +1,5 @@
 import { CATEGORIES, type Catalog, type CatalogApp } from "../catalog";
-import { escapeHtml as e, renderPage } from "./layout";
+import { escapeHtml as e, renderPage, timeTag } from "./layout";
 
 export function zipUrl(a: CatalogApp): string {
   return `https://github.com/${a.repo}/releases/download/${a.release_tag}/${a.asset}`;
@@ -15,7 +15,7 @@ function card(a: CatalogApp): string {
 <h2><a href="/apps/${e(a.id)}">${e(a.name)}</a></h2>
 <p>${e(a.description)}</p>
 <div class="row"><span class="pill">${e(a.category)}</span><span>v${e(a.version)}</span><span>${e(a.author)}</span><span>${formatSize(a.size_kb)}</span><span>★ ${a.stars}</span></div>
-<div class="links"><a href="https://github.com/${e(a.repo)}">Source</a><a href="${e(zipUrl(a))}">Download ZIP</a></div>
+<div class="links"><a href="/apps/${e(a.id)}">Details</a><a href="https://github.com/${e(a.repo)}">Source</a><a href="${e(zipUrl(a))}">Download ZIP</a></div>
 </article>`;
 }
 
@@ -31,15 +31,16 @@ for(const b of document.querySelectorAll('.cats button'))b.addEventListener('cli
 apply();`;
 
 export function renderIndexPage(catalog: Catalog): string {
-  const fw = catalog.firmware ? `Firmware ${e(catalog.firmware.version)} · ` : "";
+  const fw = catalog.firmware ? ` · Firmware ${e(catalog.firmware.version)}` : "";
   const cats = ["all", ...CATEGORIES].map((c) => `<button data-cat="${c}" aria-pressed="${c === "all"}">${c}</button>`).join("");
+  const n = catalog.apps.length;
   const body = `
-<p class="meta">${fw}${catalog.apps.length} apps · generated ${e(catalog.generated_at)}</p>
+<div class="page-head"><h2>Apps for the PicoCalc</h2><p class="meta">${n} ${n === 1 ? "app" : "apps"}${fw} · Indexed ${timeTag(catalog.generated_at)}</p></div>
 <div class="tools"><input id="q" type="search" placeholder="Search apps, authors, ids" aria-label="Search">
 <select id="sort" aria-label="Sort"><option value="stars">Most stars</option><option value="pushed">Recently updated</option><option value="name">Name</option></select></div>
 <div class="cats">${cats}</div>
 <div class="grid" id="grid">${catalog.apps.map(card).join("\n")}</div>
 <p class="empty" id="empty"${catalog.apps.length ? " hidden" : ""}>${catalog.apps.length ? "No apps match." : "No apps listed yet."}</p>
-<div class="panel"><strong>Get your app listed.</strong> Tag a public GitHub repo with <code>picos-app</code>, add an <code>app.json</code> and a Release with one ZIP. <a href="/publish">Read the publishing guide</a>.</div>`;
+<div class="panel notice"><strong>Get your app listed.</strong> Tag a public GitHub repo with <code>picos-app</code>, add an <code>app.json</code> and a Release with one ZIP. <a href="/publish">Read the publishing guide</a>.</div>`;
   return renderPage({ title: "PicOS App Store", description: "Apps for the ClockworkPi PicoCalc running PicOS", body, script: SCRIPT });
 }

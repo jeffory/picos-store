@@ -49,6 +49,8 @@ describe("renderPage", () => {
     expect(html).toContain('<a href="/status" aria-current="page">Status</a>');
     expect(html).not.toContain('<a href="/" aria-current="page">');
     expect(html).toContain("<footer>");
+    expect(html).toContain('href="/catalog.json"');
+    expect(html).not.toContain('<nav aria-label="Site"><a href="/">Apps</a><a href="/publish">Publish</a><a href="/status">Status</a><a href="/catalog.json"');
   });
   it("hides [hidden] elements even where a class sets display (the card filter relies on it)", () => {
     expect(renderPage({ title: "T", description: "D", body: "" })).toContain("[hidden]{display:none!important}");

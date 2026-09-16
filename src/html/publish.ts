@@ -30,6 +30,8 @@ export function renderPublishPage(): string {
 <h3>The ZIP</h3>
 <p>Files must sit at the archive root: <code>app.json</code> plus <code>main.lua</code> (Lua app) or <code>main.elf</code> (native app), and any assets. Do not wrap them in a folder. The ZIP must be at most 16 MB, and the <code>id</code> in the ZIP's <code>app.json</code> must equal the one in the repository. The index computes the SHA-256 itself; you do not publish a checksum.</p>
 <h3>Rejection reasons</h3>
+<p>The <a href="/status">status page</a> shows one of these codes next to any repository that is not listed.</p>
+<details class="reasons-wrap" id="reasons"><summary>All rejection reasons</summary>
 <dl class="reasons">
 <dt><code>no-release</code></dt><dd>No published (non-draft, non-prerelease) GitHub Release.</dd>
 <dt><code>github-error: &lt;message&gt;</code></dt><dd>GitHub returned an error for this repository during indexing; retried on the next refresh.</dd>
@@ -54,8 +56,9 @@ export function renderPublishPage(): string {
 <dt><code>digest-error:&lt;name&gt;</code></dt><dd>The index hit an unexpected error while reading the ZIP; it will retry on the next refresh.</dd>
 <dt><code>blocked</code></dt><dd>Delisted by the maintainer.</dd>
 </dl>
+</details>
 <h3>Updating</h3>
 <p>Bump <code>version</code> in <code>app.json</code>, tag a new Release with a new ZIP. Devices see the update on their next catalog fetch. Removing the topic delists the app on the next refresh.</p>
 </div>`;
-  return renderPage({ title: "Publish · PicOS App Store", description: "How to list an app in the PicOS App Store", body, path: "/publish" });
+  return renderPage({ title: "Publish · PicOS App Store", description: "How to list an app in the PicOS App Store", body, path: "/publish", script: "if(matchMedia('(min-width:641px)').matches)document.getElementById('reasons').open=true;" });
 }

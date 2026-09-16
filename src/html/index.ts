@@ -15,7 +15,7 @@ function card(a: CatalogApp): string {
 <h2><a href="/apps/${e(a.id)}">${e(a.name)}</a></h2>
 <p>${e(a.description.replace(/\.\s*$/, ""))}</p>
 <div class="row"><span class="pill">${e(a.category)}</span><span>v${e(a.version)}</span><span>${e(a.author)}</span><span>${formatSize(a.size_kb)}</span><span>★ ${a.stars}</span></div>
-<div class="links"><a href="/apps/${e(a.id)}">Details</a><a href="https://github.com/${e(a.repo)}">Source</a><a href="${e(zipUrl(a))}">Download ZIP</a></div>
+<div class="links"><a class="btn small" href="${e(zipUrl(a))}">Download ZIP</a><a href="/apps/${e(a.id)}">Details</a><a href="https://github.com/${e(a.repo)}">Source</a></div>
 </article>`;
 }
 
@@ -41,7 +41,7 @@ export function renderIndexPage(catalog: Catalog): string {
 <select id="sort" aria-label="Sort"><option value="stars">Most stars</option><option value="pushed">Recently updated</option><option value="name">Name</option></select></div>
 <div class="cats">${cats}</div>
 <div class="grid" id="grid">${catalog.apps.map(card).join("\n")}</div>
-<div class="empty" id="empty"${catalog.apps.length ? " hidden" : ""}>${catalog.apps.length ? `<strong>No apps match</strong>Nothing in this category matches your search yet.<br><button type="button" id="reset">Show all apps</button>` : `<strong>No apps listed yet</strong>Be the first: tag a repository with <code>picos-app</code>.`}</div>
+<div class="empty" id="empty"${catalog.apps.length ? " hidden" : ""}>${catalog.apps.length ? `<strong>No apps match</strong>Nothing here yet. Try another category, or clear the search.<br><button type="button" id="reset">Show all apps</button>` : `<strong>No apps listed yet</strong>Be the first: tag a repository with <code>picos-app</code>.`}</div>
 <div class="panel notice"><strong>Get your app listed.</strong> Tag a public GitHub repo with <code>picos-app</code>, add an <code>app.json</code> and a Release with one ZIP. <a href="/publish">Read the publishing guide</a>.</div>`;
   return renderPage({ title: "PicOS App Store", description: "Apps for the ClockworkPi PicoCalc running PicOS", body, script: SCRIPT, path: "/" });
 }

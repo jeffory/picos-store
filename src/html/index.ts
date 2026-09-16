@@ -25,7 +25,7 @@ const cards=[...grid.querySelectorAll('.card')];let cat='all';
 function apply(){const t=q.value.trim().toLowerCase();let n=0;
 for(const c of cards){const ok=(cat==='all'||c.dataset.category===cat)&&(!t||c.dataset.search.includes(t));c.hidden=!ok;if(ok)n++;}
 const key=sort.value;const vis=cards.filter(c=>!c.hidden).sort((a,b)=>key==='name'?a.dataset.name.localeCompare(b.dataset.name):key==='pushed'?b.dataset.pushed.localeCompare(a.dataset.pushed):(+b.dataset.stars)-(+a.dataset.stars));
-for(const c of vis)grid.appendChild(c);empty.hidden=n>0;}
+for(const c of vis)grid.appendChild(c);empty.hidden=n>0;const count=document.getElementById('count');if(count)count.textContent=(n===cards.length?n+' app'+(n===1?'':'s'):n+' of '+cards.length+' apps');}
 q.addEventListener('input',apply);sort.addEventListener('change',apply);
 const reset=document.getElementById('reset');if(reset)reset.addEventListener('click',()=>{q.value='';cat='all';for(const o of document.querySelectorAll('.cats button'))o.setAttribute('aria-pressed',o.dataset.cat==='all');apply();});
 for(const b of document.querySelectorAll('.cats button'))b.addEventListener('click',()=>{cat=b.dataset.cat;for(const o of document.querySelectorAll('.cats button'))o.setAttribute('aria-pressed',o===b);apply();});
@@ -36,7 +36,7 @@ export function renderIndexPage(catalog: Catalog): string {
   const cats = ["all", ...CATEGORIES].map((c) => `<button data-cat="${c}" aria-pressed="${c === "all"}">${c}</button>`).join("");
   const n = catalog.apps.length;
   const body = `
-<div class="page-head"><h2>Apps for the PicoCalc</h2><p class="meta">${n} ${n === 1 ? "app" : "apps"}${fw} · Indexed ${timeTag(catalog.generated_at)}</p></div>
+<div class="page-head"><h2>Apps for the PicoCalc</h2><p class="meta"><span id="count">${n} ${n === 1 ? "app" : "apps"}</span>${fw} · Indexed ${timeTag(catalog.generated_at)}</p></div>
 <div class="tools"><input id="q" type="search" placeholder="Search apps, authors, ids" aria-label="Search">
 <select id="sort" aria-label="Sort"><option value="stars">Most stars</option><option value="pushed">Recently updated</option><option value="name">Name</option></select></div>
 <div class="cats">${cats}</div>

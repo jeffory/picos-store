@@ -13,8 +13,8 @@ export function renderStatusPage(catalog: Catalog, debug: DebugInfo): string {
 <div class="stat"><b style="font-size:16px;margin-top:4px">${timeTag(catalog.generated_at)}</b><span>last refresh · every 30 minutes</span></div>
 </div>
 <h3>Rejected repositories</h3>
-<p>A repository tagged <code>picos-app</code> that does not appear in the store is listed here with the reason. See the <a href="/publish">publishing guide</a> for what each reason means.</p>
-${debug.rejected.length ? `<div class="panel scroll"><table><thead><tr><th>Repository</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="panel"><p class="empty" style="padding:12px 0">No repositories were rejected.</p></div>`}
+<p class="prose">A repository tagged <code>picos-app</code> that does not appear in the store is listed here with the reason. See the <a href="/publish">publishing guide</a> for what each reason means.</p>
+${debug.rejected.length ? `<div class="panel scroll"><table><thead><tr><th>Repository</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty ok"><strong>✓ Nothing rejected</strong>No repositories were rejected. Every repository tagged <code>picos-app</code> is listed.</div>`}
 ${debug.warnings.length ? `<h3>Warnings</h3><div class="panel"><ul style="margin:0">${debug.warnings.map((w) => `<li>${e(w)}</li>`).join("")}</ul></div>` : ""}`;
-  return renderPage({ title: "Status · PicOS App Store", description: "Index status and rejected repositories", body });
+  return renderPage({ title: "Status · PicOS App Store", description: "Index status and rejected repositories", body, path: "/status" });
 }

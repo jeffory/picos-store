@@ -2,6 +2,7 @@ import { renderPage } from "./layout";
 
 export function renderPublishPage(): string {
   const body = `
+<div class="prose">
 <div class="page-head"><h2>Publish an app</h2><p class="meta">Four steps, no sign-up</p></div>
 <p>The store is an automatic index of public GitHub repositories. There is no registration and no review queue; listing means a repository tagged itself, not that PicOS vetted it.</p>
 <ol>
@@ -54,6 +55,7 @@ export function renderPublishPage(): string {
 <dt><code>blocked</code></dt><dd>Delisted by the maintainer.</dd>
 </dl>
 <h3>Updating</h3>
-<p>Bump <code>version</code> in <code>app.json</code>, tag a new Release with a new ZIP. Devices see the update on their next catalog fetch. Removing the topic delists the app on the next refresh.</p>`;
-  return renderPage({ title: "Publish · PicOS App Store", description: "How to list an app in the PicOS App Store", body });
+<p>Bump <code>version</code> in <code>app.json</code>, tag a new Release with a new ZIP. Devices see the update on their next catalog fetch. Removing the topic delists the app on the next refresh.</p>
+</div>`;
+  return renderPage({ title: "Publish · PicOS App Store", description: "How to list an app in the PicOS App Store", body, path: "/publish" });
 }

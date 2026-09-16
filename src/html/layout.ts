@@ -50,24 +50,34 @@ header h1{margin:0;font-size:20px}header nav{display:flex;flex-wrap:wrap;gap:6px
 .links{display:flex;flex-wrap:wrap;gap:6px 14px}
 .btn{display:inline-block;padding:9px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg);text-decoration:none;font-weight:600}
 .btn.secondary{background:transparent;color:var(--accent)}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 24px}
-.detail{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+.detail{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:stretch}.detail>div:first-child{display:flex;flex-direction:column}.detail>div:first-child>.panel{margin-top:auto}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}.panel h3{margin:0 0 10px;font-size:15px}
 dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 16px;margin:0}dt{color:var(--muted)}dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .hash{display:block;font-size:12px;line-height:1.4;word-break:break-all}
 .copy{margin-top:6px;font:inherit;font-size:12px;padding:3px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
-code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}code{background:var(--pill);padding:1px 5px;border-radius:4px}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}code{background:var(--pill);padding:0 3px;border-radius:3px}
 pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-x:auto}pre code{background:none;padding:0}
 table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}td:first-child{white-space:nowrap}
 .scroll{overflow-x:auto;max-width:100%}
 .reasons{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:0 20px;margin:0}.reasons dt{padding:8px 0;border-bottom:1px solid var(--line);white-space:nowrap;color:inherit}.reasons dd{padding:8px 0;border-bottom:1px solid var(--line)}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 24px}.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}.stat b{display:block;font-size:24px;line-height:1.2}.stat span{color:var(--muted);font-size:13px}
 .status{display:inline-flex;align-items:center;gap:8px;font-weight:600}.status::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--ok)}.status.warn::before{background:var(--warn)}
-.empty{color:var(--muted);padding:32px 0;text-align:center}.notice{margin-top:28px}
+.notice{margin-top:28px}
 ol,ul{padding-left:22px}h3{margin:28px 0 10px;font-size:18px}
-@media(max-width:640px){header{flex-direction:column;align-items:flex-start}.page-head h2{font-size:22px}.tools{flex-direction:column}.tools select{width:100%}.detail{grid-template-columns:1fr}.reasons{grid-template-columns:1fr;gap:0}.reasons dt{border-bottom:0;padding-bottom:2px}.reasons dd{padding-top:0;padding-bottom:10px}dl{grid-template-columns:1fr;gap:2px 0}dt{margin-top:8px}}
+@media(max-width:640px){header{flex-direction:column;align-items:stretch;gap:10px;border-bottom:0;padding-bottom:0}header nav{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}header nav a{text-align:center;padding:8px 4px;border-bottom:0;border-right:1px solid var(--line);font-size:14px}header nav a:last-child{border-right:0}header nav a[aria-current=page]{background:var(--pill);border-bottom:0}.page-head h2{font-size:22px}.tools{flex-direction:column}.tools input,.tools select{flex:0 0 auto;width:100%}.detail{grid-template-columns:1fr}.detail>div:first-child>.panel{margin-top:0}.reasons{grid-template-columns:1fr;gap:0}.reasons dt{border-bottom:0;padding:10px 0 2px}.reasons dd{padding:0 0 10px}pre{white-space:pre-wrap;word-break:break-word}dl{grid-template-columns:1fr;gap:2px 0}dt{margin-top:8px}}
+header nav a[aria-current=page]{color:var(--fg);font-weight:700;border-bottom:2px solid var(--accent);padding-bottom:1px}
+.prose{max-width:72ch}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;color:var(--muted);font-size:13px}footer a{margin-right:14px}
+.empty{color:var(--muted);padding:28px 16px;text-align:center;background:var(--card);border:1px dashed var(--line);border-radius:10px}.empty strong{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
+.empty.ok{border-style:solid}.empty.ok strong{color:var(--ok)}
+.empty button{margin-top:10px;font:inherit;padding:7px 14px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer}
+
 `;
 
-export function renderPage(opts: { title: string; description: string; body: string; script?: string }): string {
+const NAV: Array<[string, string]> = [["/", "Apps"], ["/publish", "Publish"], ["/status", "Status"], ["/catalog.json", "JSON"]];
+
+export function renderPage(opts: { title: string; description: string; body: string; script?: string; path?: string }): string {
+  const nav = NAV.map(([href, label]) => `<a href="${href}"${href === opts.path ? ' aria-current="page"' : ""}>${label}</a>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -82,9 +92,10 @@ export function renderPage(opts: { title: string; description: string; body: str
 <div class="wrap">
 <header>
 <h1><a href="/" style="color:inherit;text-decoration:none">PicOS App Store</a></h1>
-<nav aria-label="Site"><a href="/">Apps</a><a href="/publish">Publish</a><a href="/status">Status</a><a href="/catalog.json">JSON</a></nav>
+<nav aria-label="Site">${nav}</nav>
 </header>
 ${opts.body}
+<footer><span>PicOS App Store · an automatic index of GitHub repositories tagged <code>picos-app</code></span><span><a href="/publish">Publish your app</a><a href="/status">Index status</a><a href="https://github.com/jeffory/PicOS">PicOS on GitHub</a></span></footer>
 </div>
 ${opts.script ? `<script>${opts.script}</script>` : ""}
 </body>

@@ -44,6 +44,12 @@ describe("renderPage", () => {
     expect(html).toContain('name="color-scheme" content="light dark"');
     expect(html).toContain("<p>hi</p>");
   });
+  it("marks the current page in the nav and adds the footer", () => {
+    const html = renderPage({ title: "T", description: "D", body: "", path: "/status" });
+    expect(html).toContain('<a href="/status" aria-current="page">Status</a>');
+    expect(html).not.toContain('<a href="/" aria-current="page">');
+    expect(html).toContain("<footer>");
+  });
   it("hides [hidden] elements even where a class sets display (the card filter relies on it)", () => {
     expect(renderPage({ title: "T", description: "D", body: "" })).toContain("[hidden]{display:none!important}");
   });

@@ -92,6 +92,7 @@ export function renderPage(opts: { title: string; description: string; body: str
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b6b4f'/><text x='16' y='23' font-family='system-ui,sans-serif' font-size='19' font-weight='700' fill='%23ffffff' text-anchor='middle'>P</text></svg>">
 <meta name="description" content="${escapeHtml(opts.description)}">
 <title>${escapeHtml(opts.title)}</title>
 <style>${CSS}</style>

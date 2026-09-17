@@ -42,6 +42,7 @@ describe("renderPage", () => {
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("<title>T</title>");
     expect(html).toContain('name="color-scheme" content="light dark"');
+    expect(html).toContain('<link rel="icon"');
     expect(html).toContain("<p>hi</p>");
   });
   it("marks the current page in the nav and adds the footer", () => {

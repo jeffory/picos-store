@@ -22,17 +22,23 @@ export function renderPublishPage(): string {
   "category": "games",
   "min_firmware": "0.1.0",
   "requirements": ["audio"],
+  "keywords": ["arcade", "retro"],
+  "icon": "icon.png",
+  "screenshots": ["shot1.png"],
   "dirname": "snake",
   "homepage": "https://example.com",
   "asset": "snake.zip"
 }</pre>
-<p><code>id</code>, <code>name</code> and <code>version</code> are required. The index reads <code>app.json</code> at the release tag, so tag after bumping the version. <code>category</code> is one of <code>games, tools, system, demos, emulators, network</code>. <code>asset</code> is only needed when the release has more than one ZIP. <code>dirname</code> defaults to the last segment of the id.</p>
+<p><code>id</code>, <code>name</code> and <code>version</code> are required. The index reads <code>app.json</code> at the release tag, so tag after bumping the version. <code>category</code> is one of <code>games, tools, system, demos, emulators, network</code>, shown in the store as Games, Tools and so on. <code>asset</code> is only needed when the release has more than one ZIP. <code>dirname</code> defaults to the last segment of the id.</p>
+<h3>Icons, screenshots and keywords</h3>
+<p>All three are optional. <code>icon</code> and <code>screenshots</code> are paths to images committed in your repository, relative to its root, read at the release tag so they are versioned with the app. Use <code>.png</code>, <code>.jpg</code>, <code>.gif</code> or <code>.webp</code>; a square icon of about 128 pixels looks best, and at most four screenshots are listed. <code>keywords</code> is a list of up to eight short words that the store searches alongside the name, description and author. A value the index cannot read is dropped with a note on the <a href="/status">status page</a> rather than rejecting the app.</p>
 <h3>The ZIP</h3>
 <p>Files must sit at the archive root: <code>app.json</code> plus <code>main.lua</code> (Lua app) or <code>main.elf</code> (native app), and any assets. Do not wrap them in a folder. The ZIP must be at most 16 MB, and the <code>id</code> in the ZIP's <code>app.json</code> must equal the one in the repository. The index computes the SHA-256 itself; you do not publish a checksum.</p>
 <h3>Rejection reasons</h3>
 <p>The <a href="/status">status page</a> shows one of these codes next to any repository that is not listed.</p>
 <details class="reasons-wrap" id="reasons"><summary>All rejection reasons</summary>
 <dl class="reasons">
+<dt class="head">Code</dt><dd class="head">What it means</dd>
 <dt><code>no-release</code></dt><dd>No published (non-draft, non-prerelease) GitHub Release.</dd>
 <dt><code>github-error: &lt;message&gt;</code></dt><dd>GitHub returned an error for this repository during indexing; retried on the next refresh.</dd>
 <dt><code>no-app-json</code></dt><dd><code>app.json</code> is missing at the release tag.</dd>

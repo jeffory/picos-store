@@ -109,7 +109,8 @@ async function collectApps(env: Env, gh: GitHubClient, fetchFn: typeof fetch, re
         size_kb: Math.ceil(outcome.size / 1024), repo: app.repo.fullName, release_tag: app.release.tagName,
         asset: app.asset.name, sha256: outcome.sha256, homepage: app.manifest.homepage ?? app.repo.htmlUrl,
         removable: app.manifest.removable, requirements: app.manifest.requirements, stars: app.repo.stars,
-        pushed_at: app.repo.pushedAt ?? "",
+        pushed_at: app.repo.pushedAt ?? "", icon: app.manifest.icon, screenshots: app.manifest.screenshots,
+        keywords: app.manifest.keywords,
       });
     } catch (e) {
       // One repo's unexpected failure must not abort the run; the rest of the catalog still publishes.

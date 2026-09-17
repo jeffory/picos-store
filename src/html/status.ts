@@ -6,12 +6,12 @@ export function renderStatusPage(catalog: Catalog, debug: DebugInfo): string {
   const healthy = debug.warnings.length === 0;
   const [refreshDay, refreshTime] = formatDate(catalog.generated_at).split(", ") as [string, string | undefined];
   const body = `
-<div class="page-head"><h2>Index status</h2><p class="status${healthy ? "" : " warn"}">${healthy ? "Index healthy" : "Index running with warnings"}</p></div>
+<div class="page-head"><h2>Index status</h2><p class="status${healthy ? "" : " warn"}">${healthy ? "Index healthy" : "Index running with warnings"}</p>
+<p class="meta">Last refresh ${e(formatDate(catalog.generated_at))}, and every 30 minutes.</p></div>
 <div class="stats">
 <div class="stat"><b>${catalog.apps.length}</b><span>apps listed</span></div>
 <div class="stat"><b>${debug.rejected.length}</b><span>repositories rejected</span></div>
 <div class="stat"><b>${catalog.firmware ? e(catalog.firmware.version) : "—"}</b><span>latest firmware</span></div>
-<div class="stat"><b>${e(refreshTime ?? refreshDay)}</b><span>last refresh, ${e(refreshDay)} · every 30 min</span></div>
 </div>
 <h3>Rejected repositories</h3>
 <p>A repository tagged <code>picos-app</code> that does not appear in the store is listed here with the reason. See the <a href="/publish">publishing guide</a> for what each reason means.</p>

@@ -63,7 +63,6 @@ describe("renderIndexPage", () => {
     expect(html).not.toContain("<script>alert");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;&quot;");
     expect(html).toContain('href="/apps/com.example.snake"');
-    expect(html).toContain('href="https://github.com/example/picos-snake"');
     expect(html).toContain('href="https://github.com/example/picos-snake/releases/download/v1.2.0/snake.zip"');
     expect(html).toContain('data-category="games"');
     expect(html).toContain('data-stars="17"');
@@ -73,6 +72,24 @@ describe("renderIndexPage", () => {
     expect(html).toContain('href="/publish"');
     expect(html.match(/class="card"/g)).toHaveLength(2);
   });
+  it("shows an app's icon, and a monogram tile when it has none", () => {
+    const withIcon = fixtureApp({ id: "com.example.withicon", icon: "https://raw.githubusercontent.com/example/picos-snake/v1.2.0/icon.png" });
+    const html = renderIndexPage(fixtureCatalog([fixtureApp(), withIcon]));
+    expect(html).toContain('<img class="icon" src="https://raw.githubusercontent.com/example/picos-snake/v1.2.0/icon.png"');
+    expect(html).toContain('<span class="icon" aria-hidden="true">S</span>');
+  });
+
+  it("puts keywords in the card's search text and disables empty categories", () => {
+    const html = renderIndexPage(fixtureCatalog([fixtureApp({ keywords: ["arcade", "retro"] })]));
+    expect(html).toMatch(/data-search="[^"]*arcade retro/);
+    expect(html).toContain('data-cat="tools" aria-pressed="false" disabled');
+    expect(html).toContain('data-cat="games" aria-pressed="false">games<span class="n">1</span>');
+  });
+
+  it("defaults the sort to recently updated", () => {
+    expect(renderIndexPage(fixtureCatalog())).toContain('<option value="pushed">Recently updated</option><option value="stars">');
+  });
+
   it("handles an empty catalog", () => {
     const html = renderIndexPage(fixtureCatalog([]));
     expect(html).toContain("No apps listed yet");
@@ -88,6 +105,19 @@ describe("renderAppPage", () => {
     expect(html).toContain("audio");
     expect(html).toContain("v1.2.0");
   });
+  it("renders screenshots and keywords when the manifest has them", () => {
+    const app = fixtureApp({ screenshots: ["https://raw.githubusercontent.com/example/picos-snake/v1.2.0/shot.png"], keywords: ["arcade"] });
+    const html = renderAppPage(app, fixtureCatalog([app]));
+    expect(html).toContain('<div class="shots"><img src="https://raw.githubusercontent.com/example/picos-snake/v1.2.0/shot.png" alt="Screenshot of Snake"');
+    expect(html).toContain("<dt>Keywords</dt><dd>arcade</dd>");
+  });
+
+  it("states size and version once each", () => {
+    const html = renderAppPage(fixtureApp(), fixtureCatalog());
+    expect(html.match(/42 KB/g)).toHaveLength(1);
+    expect(html).not.toContain("<dt>Version</dt>");
+  });
+
   it("never emits a javascript: homepage link", () => {
     const app = fixtureApp({ homepage: "javascript:alert(1)" });
     const html = renderAppPage(app, fixtureCatalog([app]));

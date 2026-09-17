@@ -19,8 +19,48 @@ describe("validateRepo", () => {
       id: "com.ex.snake", name: "Snake", version: "1.0.0", description: "d", long_description: "", author: "ex",
       category: "games", min_firmware: "0.0.0", requirements: ["audio"], dirname: "snake",
       homepage: "https://github.com/ex/snake", removable: true, asset: null,
+      icon: "", screenshots: [], keywords: [],
     });
     expect(r.app.warnings).toEqual([]);
+  });
+
+  it("turns icon and screenshot paths into raw URLs at the release tag", () => {
+    const r = validateRepo(repo, rel(), manifest({ icon: "./art/icon.png", screenshots: ["a.png", "b/c.webp"] }));
+    expect(r.ok && r.app.manifest.icon).toBe("https://raw.githubusercontent.com/ex/snake/v1/art/icon.png");
+    expect(r.ok && r.app.manifest.screenshots).toEqual([
+      "https://raw.githubusercontent.com/ex/snake/v1/a.png",
+      "https://raw.githubusercontent.com/ex/snake/v1/b/c.webp",
+    ]);
+    expect(r.ok && r.app.warnings).toEqual([]);
+  });
+
+  it.each([
+    ["absolute path", "/etc/passwd.png"],
+    ["parent traversal", "../../secret.png"],
+    ["a full URL", "https://evil.example/x.png"],
+    ["a non-image", "payload.svg"],
+    ["a non-string", 7],
+  ])("warns and drops an icon that is %s, without rejecting the app", (_label, icon) => {
+    const r = validateRepo(repo, rel(), manifest({ icon }));
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.app.manifest.icon).toBe("");
+    expect(r.ok && r.app.warnings.join(" ")).toMatch(/icon ignored/);
+  });
+
+  it("caps screenshots at four and keywords at eight, lower-cased and deduped", () => {
+    const shots = ["a.png", "b.png", "c.png", "d.png", "e.png"];
+    const words = ["Arcade", "arcade", "Retro", "k3", "k4", "k5", "k6", "k7", "k8", "k9"];
+    const r = validateRepo(repo, rel(), manifest({ screenshots: shots, keywords: words }));
+    expect(r.ok && r.app.manifest.screenshots).toHaveLength(4);
+    expect(r.ok && r.app.manifest.keywords).toEqual(["arcade", "retro", "k3", "k4", "k5", "k6", "k7", "k8"]);
+    expect(r.ok && r.app.warnings.join(" ")).toMatch(/first 4 screenshots/);
+  });
+
+  it("ignores keywords and screenshots that are not arrays, with a warning", () => {
+    const r = validateRepo(repo, rel(), manifest({ keywords: "arcade", screenshots: "a.png" }));
+    expect(r.ok && r.app.manifest.keywords).toEqual([]);
+    expect(r.ok && r.app.manifest.screenshots).toEqual([]);
+    expect(r.ok && r.app.warnings.join(" ")).toMatch(/keywords ignored/);
   });
   it("warns on unknown category", () => {
     const r = validateRepo(repo, rel(), manifest({ category: "puzzles" }));

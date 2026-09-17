@@ -8,7 +8,7 @@ export function fixtureApp(over: Partial<CatalogApp> = {}): CatalogApp {
     long_description: "A classic.", version: "1.2.0", author: "Example", category: "games", app_type: "lua",
     min_firmware: "0.1.0", size_kb: 42, repo: "example/picos-snake", release_tag: "v1.2.0", asset: "snake.zip",
     sha256: SHA, homepage: "https://github.com/example/picos-snake", removable: true, requirements: ["audio"],
-    stars: 17, pushed_at: "2026-09-01T12:00:00Z", ...over,
+    stars: 17, pushed_at: "2026-09-01T12:00:00Z", icon: "", screenshots: [], keywords: [], ...over,
   };
 }
 

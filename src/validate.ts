@@ -13,11 +13,30 @@ export const FIRST_PARTY_REPO = "jeffory/picOS";
 
 /** Field caps applied at ingest so no author string can grow a KV key, a reason or the catalog without bound. */
 const VERSION_MAX = 40, ASSET_MAX = 100, REQUIREMENT_MAX = 40, REASON_MAX = 60;
+const KEYWORD_MAX = 24, MAX_KEYWORDS = 8, MAX_SCREENSHOTS = 4, PATH_MAX = 120;
+
+/** A repository-relative image path: no scheme, no absolute or parent traversal, a known image suffix. */
+const IMAGE_PATH_RE = /^[A-Za-z0-9._\/-]+$/;
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp)$/i;
+
+function imagePath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().replace(/^\.\//, "");
+  if (!v || v.length > PATH_MAX) return null;
+  if (v.startsWith("/") || v.includes("..") || v.includes("//")) return null;
+  if (!IMAGE_PATH_RE.test(v) || !IMAGE_EXT_RE.test(v)) return null;
+  return v;
+}
+
+/** Author images are served from the repository at the release tag, so they are versioned with the app. */
+function rawUrl(repoFullName: string, tag: string, path: string): string {
+  return `https://raw.githubusercontent.com/${repoFullName}/${tag}/${path}`;
+}
 
 export interface AppManifest {
   id: string; name: string; version: string; description: string; long_description: string; author: string;
   category: Category; min_firmware: string; requirements: string[]; dirname: string; homepage: string | null;
-  removable: boolean; asset: string | null;
+  removable: boolean; asset: string | null; icon: string; screenshots: string[]; keywords: string[];
 }
 export interface ValidatedApp { repo: RepoSummary; release: RepoRelease; asset: ReleaseAsset; manifest: AppManifest; warnings: string[]; }
 export type ValidationResult = { ok: true; app: ValidatedApp } | { ok: false; reason: string };
@@ -69,6 +88,39 @@ export function validateRepo(repo: RepoSummary, release: Lookup<RepoRelease | nu
     ? m.requirements.filter((r): r is string => typeof r === "string").map((r) => sanitize(r, REQUIREMENT_MAX)).filter((r) => r.length > 0)
     : [];
   const homepage = sanitize(hasText(m.homepage) ? m.homepage : repo.htmlUrl, LIMITS.default) || repo.htmlUrl;
+
+  // Imagery and keywords are optional decoration: a malformed value is warned about and dropped,
+  // never a rejection, so a typo in an icon path cannot delist an otherwise working app.
+  const tag = release.value.tagName;
+  let icon = "";
+  if (m.icon !== undefined) {
+    const p = imagePath(m.icon);
+    if (p) icon = rawUrl(repo.fullName, tag, p);
+    else warnings.push("icon ignored: not a repository-relative .png/.jpg/.gif/.webp path");
+  }
+  const screenshots: string[] = [];
+  if (m.screenshots !== undefined) {
+    const list = Array.isArray(m.screenshots) ? m.screenshots : [];
+    if (!Array.isArray(m.screenshots)) warnings.push("screenshots ignored: not an array");
+    for (const raw of list) {
+      if (screenshots.length >= MAX_SCREENSHOTS) { warnings.push(`only the first ${MAX_SCREENSHOTS} screenshots are listed`); break; }
+      const p = imagePath(raw);
+      if (p) screenshots.push(rawUrl(repo.fullName, tag, p));
+      else warnings.push("a screenshot was ignored: not a repository-relative image path");
+    }
+  }
+  const keywords: string[] = [];
+  if (m.keywords !== undefined) {
+    const list = Array.isArray(m.keywords) ? m.keywords : [];
+    if (!Array.isArray(m.keywords)) warnings.push("keywords ignored: not an array");
+    for (const raw of list) {
+      if (typeof raw !== "string") continue;
+      const k = sanitize(raw, KEYWORD_MAX).toLowerCase();
+      if (!k || keywords.includes(k)) continue;
+      if (keywords.length >= MAX_KEYWORDS) { warnings.push(`only the first ${MAX_KEYWORDS} keywords are listed`); break; }
+      keywords.push(k);
+    }
+  }
   const manifest: AppManifest = {
     id,
     name: sanitize(m.name, LIMITS.name),
@@ -83,6 +135,9 @@ export function validateRepo(repo: RepoSummary, release: Lookup<RepoRelease | nu
     homepage,
     removable: m.removable === false ? false : true,
     asset: wanted,
+    icon,
+    screenshots,
+    keywords,
   };
   return { ok: true, app: { repo, release: release.value, asset, manifest, warnings } };
 }

@@ -7,6 +7,7 @@ export interface CatalogApp {
   version: string; author: string; category: Category; app_type: AppType; min_firmware: string;
   size_kb: number; repo: string; release_tag: string; asset: string; sha256: string;
   homepage: string; removable: boolean; requirements: string[]; stars: number; pushed_at: string;
+  icon: string; screenshots: string[]; keywords: string[];
 }
 
 export interface Firmware { version: string; repo: string; release_tag: string; changelog: string; size_kb: number; }
@@ -14,7 +15,7 @@ export interface Rejection { repo: string; reason: string; }
 export interface Catalog { generated_at: string; firmware: Firmware | null; apps: CatalogApp[]; }
 export interface DebugInfo { rejected: Rejection[]; warnings: string[]; }
 
-export const LIMITS = { name: 40, description: 120, long_description: 1000, author: 60, changelog: 500, default: 200 } as const;
+export const LIMITS = { name: 40, description: 120, long_description: 1000, author: 60, changelog: 500, url: 240, default: 200 } as const;
 
 const REPLACEMENTS: Array<[RegExp, string]> = [
   [/"/g, "'"], [/\\/g, "/"], [/\{/g, "("], [/\}/g, ")"], [/\[/g, "("], [/\]/g, ")"],
@@ -57,6 +58,9 @@ function appEntry(a: CatalogApp): string {
     ["sha256", str(a.sha256.toLowerCase())], ["homepage", str(a.homepage)],
     ["removable", a.removable ? "true" : "false"], ["stars", int(a.stars)], ["pushed_at", str(a.pushed_at)],
     ["requirements", "[" + a.requirements.map((r) => str(r, 40)).join(",") + "]"],
+    ["icon", str(a.icon, LIMITS.url)],
+    ["screenshots", "[" + a.screenshots.map((s) => str(s, LIMITS.url)).join(",") + "]"],
+    ["keywords", "[" + a.keywords.map((k) => str(k, 24)).join(",") + "]"],
   ];
   return "{" + fields.map(([k, v]) => `"${k}":${v}`).join(",") + "}";
 }
